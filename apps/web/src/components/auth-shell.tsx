@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Scale, Clock, CheckCircle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { checkBetaStatus } from "@/lib/api";
+import { checkBetaStatus, submitBetaRequest } from "@/lib/api";
 
 const PUBLIC_PATHS = ["/login", "/create", "/blog"];
 const PUBLIC_EXACT = ["/"];
@@ -48,14 +48,30 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
     setBetaChecking(true);
     checkBetaStatus(user.email)
-      .then((res) => {
-        const status = res.status === "approved" ? "approved" : "pending";
-        setBetaStatus(status);
-        localStorage.setItem(BETA_STATUS_KEY, JSON.stringify({
-          email: user.email,
-          status,
-          ts: Date.now(),
-        }));
+      .then(async (res) => {
+        if (res.status === "approved") {
+          setBetaStatus("approved");
+          localStorage.setItem(BETA_STATUS_KEY, JSON.stringify({
+            email: user.email, status: "approved", ts: Date.now(),
+          }));
+        } else if (res.status === "not_found") {
+          // Auto-submit beta request on first Google sign-in
+          try {
+            await submitBetaRequest({
+              email: user.email,
+              name: user.name || undefined,
+            });
+          } catch { /* already requested — ignore */ }
+          setBetaStatus("pending");
+          localStorage.setItem(BETA_STATUS_KEY, JSON.stringify({
+            email: user.email, status: "pending", ts: Date.now(),
+          }));
+        } else {
+          setBetaStatus("pending");
+          localStorage.setItem(BETA_STATUS_KEY, JSON.stringify({
+            email: user.email, status: "pending", ts: Date.now(),
+          }));
+        }
       })
       .catch(() => {
         // If check fails, allow access (fail open for dev)
