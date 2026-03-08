@@ -66,8 +66,11 @@ export interface SearchResponse {
   page: number;
   page_size: number;
 }
-export const searchCases = (query: string, page = 1, pageSize = 10) =>
-  apiFetch<SearchResponse>(`/search?query=${encodeURIComponent(query)}&page=${page}&page_size=${pageSize}`);
+export const searchCases = async (query: string, page = 1, pageSize = 10): Promise<SearchResponse> => {
+  const backendPage = Math.max(0, page - 1);
+  const res = await apiFetch<SearchResponse>(`/search/cases?query=${encodeURIComponent(query)}&page=${backendPage}&max_pages=${Math.ceil(pageSize / 10)}`);
+  return { ...res, page, page_size: pageSize };
+};
 
 // ---------- Documents ----------
 export interface Template {

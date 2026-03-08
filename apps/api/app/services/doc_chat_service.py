@@ -168,12 +168,40 @@ async def create_session(
     await session.commit()
     await session.refresh(doc_session)
 
-    # Fire-and-forget background processing
-    asyncio.create_task(
-        _process_document(doc_session.id, content, content_type, file_name)
-    )
-
     return doc_session
+
+
+async def process_document_inline(
+    session: AsyncSession,
+    doc_session: DocSession,
+    content: bytes,
+    content_type: str,
+    file_name: str,
+) -> None:
+    """Extract text and analyze the document inline (within the request)."""
+    # Extract text
+    try:
+        text = await extract_text_from_bytes(content, content_type, file_name)
+        doc_session.extracted_text = text
+    except Exception as e:
+        logger.exception(f"[DocChat] Text extraction failed for {doc_session.id}")
+        doc_session.status = "failed"
+        doc_session.error = f"Text extraction failed: {e}"
+        await session.commit()
+        return
+
+    # Analyze
+    try:
+        analysis = await analyze_document(text)
+        doc_session.analysis = analysis
+        doc_session.status = "ready"
+    except Exception as e:
+        logger.exception(f"[DocChat] Analysis failed for {doc_session.id}")
+        doc_session.status = "ready"  # Still usable for chat, just no analysis
+        doc_session.analysis = {"error": str(e)}
+
+    await session.commit()
+    logger.info(f"[DocChat] Inline processing complete for {doc_session.id}: {doc_session.status}")
 
 
 async def _process_document(

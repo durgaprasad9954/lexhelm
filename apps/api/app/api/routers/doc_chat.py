@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 
 from app.core.jwt_auth import JWTPayload, get_jwt_payload_optional
 from app.core.rate_limit import RateLimit
@@ -27,7 +27,11 @@ async def upload_document(
     file: UploadFile = File(..., description="PDF, DOCX, or TXT document"),
     jwt: Optional[JWTPayload] = Depends(get_jwt_payload_optional),
 ):
-    """Upload a document for analysis and chat. Returns a session ID."""
+    """Upload a document for analysis and chat. Returns a session ID.
+
+    Processing (text extraction + analysis) runs inline so the session
+    is ready immediately — avoids background-task issues on Cloud Run.
+    """
     if not file.filename:
         raise HTTPException(status_code=400, detail="File name is required")
 
@@ -46,6 +50,15 @@ async def upload_document(
             org_id=jwt.org_id if jwt else None,
             user_id=jwt.user_id if jwt else None,
         )
+
+        # Process inline — extract text + analyze before responding
+        await doc_chat_service.process_document_inline(
+            session, doc_session, content,
+            file.content_type or "application/octet-stream",
+            file.filename,
+        )
+        await session.refresh(doc_session)
+
         return DocSessionResponse(
             id=doc_session.id,
             file_name=doc_session.file_name,
