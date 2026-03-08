@@ -1,0 +1,40 @@
+# Core
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+python-multipart>=0.0.9,<1.0.0
+
+# Database
+sqlalchemy>=2.0.25,<2.1.0
+asyncpg>=0.29.0,<0.31.0
+greenlet>=3.0.0,<4.0.0
+
+# Validation & Settings
+pydantic>=2.0.0,<3.0.0
+pydantic-settings>=2.0.0,<3.0.0
+email-validator>=2.0.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
+
+# Auth
+PyJWT>=2.8.0,<3.0.0
+
+# GCS (artifact storage)
+google-cloud-storage>=2.15.0,<3.0.0
+google-cloud-iam>=2.14.0,<3.0.0
+
+# Templates (document generation)
+Jinja2>=3.1.0,<4.0.0
+
+# AI (Gemini — for contract parsing & future agents)
+google-genai>=1.0.0
+
+# HTTP retries (search service)
+tenacity>=8.0.0,<10.0.0
+
+# AMQP (async job queue — LavinMQ/CloudAMQP)
+aio-pika>=9.0.0,<10.0.0
+
+# Worker health server (Cloud Run requires HTTP listener)
+aiohttp>=3.9.0,<4.0.0
+
+# Email (Resend — transactional notifications)
+resend>=2.0.0,<3.0.0
