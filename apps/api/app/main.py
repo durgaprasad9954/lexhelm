@@ -64,11 +64,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-health_exempt = (
+public_exempt = (
     "/healthz", "/healthz/",
     f"{settings.api_prefix}/healthz", f"{settings.api_prefix}/healthz/",
+    f"{settings.api_prefix}/auth/google", f"{settings.api_prefix}/auth/google/",
 )
-app.add_middleware(TokenAuthMiddleware, exempt_paths=health_exempt)
+app.add_middleware(TokenAuthMiddleware, exempt_paths=public_exempt)
 
 
 @app.on_event("startup")
