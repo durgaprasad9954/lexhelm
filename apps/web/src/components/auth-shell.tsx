@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth";
 import { AppSidebar } from "@/components/app-sidebar";
-import { Scale, Clock, CheckCircle, LogOut } from "lucide-react";
+import { Scale, Clock, CheckCircle, LogOut, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { checkBetaStatus, submitBetaRequest } from "@/lib/api";
 
@@ -33,14 +33,13 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Check cached status first
+    // Only use cache if status is "approved" (permanent), always recheck "pending"
     const cached = localStorage.getItem(BETA_STATUS_KEY);
     if (cached) {
       try {
-        const { email, status, ts } = JSON.parse(cached);
-        // Cache for 5 minutes
-        if (email === user.email && Date.now() - ts < 5 * 60 * 1000) {
-          setBetaStatus(status);
+        const { email, status } = JSON.parse(cached);
+        if (email === user.email && status === "approved") {
+          setBetaStatus("approved");
           return;
         }
       } catch { /* ignore */ }
@@ -158,6 +157,31 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center justify-center gap-3">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                localStorage.removeItem(BETA_STATUS_KEY);
+                setBetaStatus(null);
+                setBetaChecking(true);
+                checkBetaStatus(user!.email)
+                  .then((res) => {
+                    if (res.status === "approved") {
+                      setBetaStatus("approved");
+                      localStorage.setItem(BETA_STATUS_KEY, JSON.stringify({
+                        email: user!.email, status: "approved", ts: Date.now(),
+                      }));
+                    } else {
+                      setBetaStatus("pending");
+                    }
+                  })
+                  .catch(() => setBetaStatus("approved"))
+                  .finally(() => setBetaChecking(false));
+              }}
+              className="gap-1.5"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Check Status
+            </Button>
             <Button variant="outline" size="sm" onClick={logout} className="gap-1.5">
               <LogOut className="h-3.5 w-3.5" /> Sign Out
             </Button>
