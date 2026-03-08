@@ -25,10 +25,16 @@ class DocSessionListResponse(APIModel):
     sessions: list[DocSessionResponse]
 
 
+class Citation(APIModel):
+    text: str
+    clause_ref: Optional[str] = None
+
+
 class DocMessageResponse(APIModel):
     id: str
     role: str
     content: str
+    citations: list[Citation] = []
     created_at: datetime
 
 
@@ -44,3 +50,4 @@ class ChatResponse(APIModel):
     session_id: str
     user_message: str
     assistant_message: str
+    citations: list[Citation] = []

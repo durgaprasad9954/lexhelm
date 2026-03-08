@@ -9,7 +9,7 @@ from app.core.jwt_auth import JWTPayload, get_jwt_payload_optional
 from app.core.rate_limit import RateLimit
 from app.db.session import async_session_factory
 from app.schemas.doc_chat import (
-    ChatRequest, ChatResponse, DocMessageResponse,
+    ChatRequest, ChatResponse, Citation, DocMessageResponse,
     DocSessionDetailResponse, DocSessionListResponse, DocSessionResponse,
 )
 from app.services import doc_chat_service
@@ -92,7 +92,14 @@ async def get_session(session_id: str):
             created_at=doc_session.created_at,
             messages=[
                 DocMessageResponse(
-                    id=m.id, role=m.role, content=m.content, created_at=m.created_at,
+                    id=m.id,
+                    role=m.role,
+                    content=m.content,
+                    citations=[
+                        Citation(text=c["text"], clause_ref=c.get("clause_ref"))
+                        for c in (getattr(m, "extra_data", None) or {}).get("citations", [])
+                    ] if m.role == "assistant" else [],
+                    created_at=m.created_at,
                 )
                 for m in doc_session.messages
             ],
@@ -111,12 +118,16 @@ async def chat_with_document(session_id: str, req: ChatRequest):
         if doc_session.status == "failed":
             raise HTTPException(status_code=422, detail=f"Document processing failed: {doc_session.error}")
 
-        reply = await doc_chat_service.chat(session, doc_session, req.message)
+        reply, citations = await doc_chat_service.chat(session, doc_session, req.message)
 
         return ChatResponse(
             session_id=session_id,
             user_message=req.message,
             assistant_message=reply,
+            citations=[
+                Citation(text=c["text"], clause_ref=c.get("clause_ref"))
+                for c in citations
+            ],
         )
 
 

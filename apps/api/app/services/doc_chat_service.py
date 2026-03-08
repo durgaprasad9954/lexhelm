@@ -265,10 +265,14 @@ async def chat(
     session: AsyncSession,
     doc_session: DocSession,
     user_message: str,
-) -> str:
-    """Chat with a document — uses document text + chat history as context."""
+) -> tuple[str, list[dict]]:
+    """Chat with a document — uses document text + chat history as context.
+
+    Returns (assistant_text, citations) where citations is a list of
+    ``{"text": "...", "clause_ref": "..."}`` dicts extracted from the document.
+    """
     if not settings.gemini_api_key:
-        return "Chat requires GEMINI_API_KEY to be configured."
+        return "Chat requires GEMINI_API_KEY to be configured.", []
 
     # Save user message
     user_msg = DocMessage(
@@ -310,22 +314,54 @@ Instructions:
 - Be specific — cite clause numbers, sections, or exact phrases from the document.
 - If the user asks about risks or recommendations, be thorough and practical.
 - Use simple language but be legally precise.
-- If relevant, mention applicable Indian laws or precedents."""
+- If relevant, mention applicable Indian laws or precedents.
+
+IMPORTANT: Respond with a JSON object in this exact format (no markdown fences):
+{{
+  "answer": "Your full answer in markdown format",
+  "citations": [
+    {{
+      "text": "Exact quoted text from the document that supports this part of your answer",
+      "clause_ref": "Section/clause reference if identifiable, or null"
+    }}
+  ]
+}}
+
+Rules for citations:
+- Each citation's "text" must be a VERBATIM excerpt from the document (not paraphrased).
+- Include 2-5 citations for substantive answers. Use fewer only if the document lacks relevant content.
+- Keep each citation excerpt to 1-3 sentences — enough for context but not entire paragraphs.
+- If no specific text supports the answer, use an empty citations array.
+- The "clause_ref" should reference the section, clause, or article number if one is apparent."""
 
     response = await client.aio.models.generate_content(
         model=settings.gemini_model,
         contents=prompt,
     )
 
-    assistant_text = response.text.strip()
+    raw = _strip_json_fences(response.text.strip())
 
-    # Save assistant response
+    # Parse structured response with graceful fallback
+    citations: list[dict] = []
+    try:
+        parsed = json.loads(raw)
+        assistant_text = parsed.get("answer", raw)
+        citations = [
+            {"text": c.get("text", ""), "clause_ref": c.get("clause_ref")}
+            for c in parsed.get("citations", [])
+            if isinstance(c, dict) and c.get("text")
+        ]
+    except (json.JSONDecodeError, AttributeError):
+        assistant_text = response.text.strip()
+
+    # Save assistant response with citations in metadata
     assistant_msg = DocMessage(
         session_id=doc_session.id,
         role="assistant",
         content=assistant_text,
+        extra_data={"citations": citations} if citations else None,
     )
     session.add(assistant_msg)
     await session.commit()
 
-    return assistant_text
+    return assistant_text, citations

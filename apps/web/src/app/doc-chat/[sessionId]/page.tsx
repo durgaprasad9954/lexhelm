@@ -10,7 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowLeft, Send, FileText, User, Bot, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { getDocSession, chatWithDoc, type DocSessionDetail, type DocMessage } from "@/lib/api";
+import { getDocSession, chatWithDoc, type DocSessionDetail, type DocMessage, type Citation } from "@/lib/api";
+import { CitationCard } from "./citation-card";
 import { Linkify } from "@/lib/linkify";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -79,6 +80,7 @@ export default function DocChatSessionPage() {
         id: `resp-${Date.now()}`,
         role: "assistant",
         content: res.assistant_message,
+        citations: res.citations,
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -239,29 +241,46 @@ export default function DocChatSessionPage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
-                    className={`flex gap-3 ${m.role === "user" ? "justify-end" : ""}`}
+                    className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
                   >
-                    {m.role === "assistant" && (
-                      <div className="shrink-0 h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Bot className="h-4 w-4 text-primary" />
-                      </div>
-                    )}
-                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                      m.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-br-md"
-                        : "bg-muted rounded-bl-md"
-                    }`}>
-                      {m.role === "assistant" ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                    <div className={`flex gap-3 ${m.role === "user" ? "justify-end" : ""}`}>
+                      {m.role === "assistant" && (
+                        <div className="shrink-0 h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <Bot className="h-4 w-4 text-primary" />
                         </div>
-                      ) : (
-                        <Linkify text={m.content} />
+                      )}
+                      <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
+                        m.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-br-md"
+                          : "bg-muted rounded-bl-md"
+                      }`}>
+                        {m.role === "assistant" ? (
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <Linkify text={m.content} />
+                        )}
+                      </div>
+                      {m.role === "user" && (
+                        <div className="shrink-0 h-8 w-8 rounded-xl bg-primary flex items-center justify-center">
+                          <User className="h-4 w-4 text-primary-foreground" />
+                        </div>
                       )}
                     </div>
-                    {m.role === "user" && (
-                      <div className="shrink-0 h-8 w-8 rounded-xl bg-primary flex items-center justify-center">
-                        <User className="h-4 w-4 text-primary-foreground" />
+                    {m.role === "assistant" && m.citations && m.citations.length > 0 && (
+                      <div className="ml-11 mt-2 space-y-1.5 max-w-[75%]">
+                        <motion.p
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.4 }}
+                          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+                        >
+                          Sources ({m.citations.length})
+                        </motion.p>
+                        {m.citations.map((c, i) => (
+                          <CitationCard key={i} citation={c} index={i} />
+                        ))}
                       </div>
                     )}
                   </motion.div>
@@ -271,22 +290,35 @@ export default function DocChatSessionPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-3"
+                  className="flex flex-col items-start"
                 >
-                  <div className="shrink-0 h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Bot className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
-                    <div className="flex gap-1.5">
-                      {[0, 0.15, 0.3].map((delay) => (
-                        <motion.div
-                          key={delay}
-                          className="h-2 w-2 rounded-full bg-muted-foreground/40"
-                          animate={{ opacity: [0.3, 1, 0.3] }}
-                          transition={{ duration: 1, repeat: Infinity, delay }}
-                        />
-                      ))}
+                  <div className="flex gap-3">
+                    <div className="shrink-0 h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Bot className="h-4 w-4 text-primary" />
                     </div>
+                    <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
+                      <div className="flex gap-1.5">
+                        {[0, 0.15, 0.3].map((delay) => (
+                          <motion.div
+                            key={delay}
+                            className="h-2 w-2 rounded-full bg-muted-foreground/40"
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1, repeat: Infinity, delay }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ml-11 mt-2 space-y-1.5 max-w-[75%]">
+                    {[0, 1].map((i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: [0.3, 0.5, 0.3] }}
+                        transition={{ duration: 1.5, repeat: Infinity, delay: 0.8 + i * 0.2 }}
+                        className="h-10 rounded-xl bg-amber-100/30 dark:bg-amber-900/10 border border-border/30"
+                      />
+                    ))}
                   </div>
                 </motion.div>
               )}

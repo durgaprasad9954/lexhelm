@@ -140,10 +140,15 @@ export interface DocSession {
   message_count: number;
   created_at: string;
 }
+export interface Citation {
+  text: string;
+  clause_ref?: string | null;
+}
 export interface DocMessage {
   id: string;
   role: string;
   content: string;
+  citations?: Citation[];
   created_at: string;
 }
 export interface DocSessionDetail extends DocSession {
@@ -157,7 +162,7 @@ export const uploadDocument = (file: File) => {
 export const getDocSession = (id: string) => apiFetch<DocSessionDetail>(`/doc-chat/${id}`);
 export const listDocSessions = (limit = 20) => apiFetch<{ sessions: DocSession[] }>(`/doc-chat?limit=${limit}`);
 export const chatWithDoc = (sessionId: string, message: string) =>
-  apiFetch<{ session_id: string; user_message: string; assistant_message: string }>(
+  apiFetch<{ session_id: string; user_message: string; assistant_message: string; citations: Citation[] }>(
     `/doc-chat/${sessionId}/chat`,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) },
   );

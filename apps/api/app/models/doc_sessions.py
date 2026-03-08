@@ -55,5 +55,6 @@ class DocMessage(TimestampMixin, Base):
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # "user" or "assistant"
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    extra_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     session: Mapped["DocSession"] = relationship(back_populates="messages")
