@@ -11,6 +11,7 @@ from app.schemas.document import (
     DraftChatListResponse,
     DraftChatMessageInfo,
     DraftChatMessageRequest,
+    DraftChatRefineRequest,
     DraftChatResponse,
     DraftChatSessionDetail,
     DraftChatSessionSummary,
@@ -89,6 +90,31 @@ async def confirm_draft(session_id: str):
             collected_fields=draft.collected_fields or {},
             missing_fields=draft.missing_fields or [],
             generated_content=draft.generated_content,
+        )
+
+
+@router.post("/{session_id}/refine", response_model=DraftChatResponse)
+async def refine_document(session_id: str, req: DraftChatRefineRequest):
+    """Refine a generated document with natural language instructions."""
+    async with async_session_factory() as session:
+        draft = await draft_chat_service.get_session(session, session_id)
+        if not draft:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if draft.phase not in ("done", "refining"):
+            raise HTTPException(status_code=409, detail="Document not yet generated.")
+
+        updated_content = await draft_chat_service.process_refinement_turn(
+            session, draft, req.message, req.current_document,
+        )
+
+        return DraftChatResponse(
+            session_id=draft.id,
+            assistant_message="I've updated the document based on your instructions.",
+            phase=draft.phase,
+            template_id=draft.template_id,
+            collected_fields=draft.collected_fields or {},
+            missing_fields=[],
+            generated_content=updated_content,
         )
 
 

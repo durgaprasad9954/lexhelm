@@ -209,6 +209,12 @@ export const sendDraftMessage = (sessionId: string, message: string) =>
   });
 export const confirmDraftChat = (sessionId: string) =>
   apiFetch<DraftChatResponse>(`/draft-chat/${sessionId}/confirm`, { method: "POST" });
+export const refineDraftDocument = (sessionId: string, message: string, currentDocument: string) =>
+  apiFetch<DraftChatResponse>(`/draft-chat/${sessionId}/refine`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, current_document: currentDocument }),
+  });
 export const getDraftChatSession = (id: string) =>
   apiFetch<DraftChatSessionDetail>(`/draft-chat/${id}`);
 export const listDraftChatSessions = (limit = 20) =>

@@ -76,6 +76,11 @@ class DraftChatMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
 
 
+class DraftChatRefineRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+    current_document: str = Field(..., min_length=1)
+
+
 class DraftChatMessageInfo(APIModel):
     id: str
     role: str

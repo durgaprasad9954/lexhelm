@@ -23,6 +23,7 @@ import remarkGfm from "remark-gfm";
 import {
   listTemplates, parseContract,
   startDraftChat, sendDraftMessage, confirmDraftChat,
+  refineDraftDocument,
   type Template, type DraftChatResponse,
 } from "@/lib/api";
 import { LegalEditor } from "@/components/editor/legal-editor";
@@ -306,8 +307,13 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
   const [editorHtml, setEditorHtml] = useState<string>("");
   const [editableFields, setEditableFields] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
-  const [showFields, setShowFields] = useState(true);
+  const [showFields, setShowFields] = useState(false);
+  const [showRefineChat, setShowRefineChat] = useState(true);
+  const [refineInput, setRefineInput] = useState("");
+  const [refining, setRefining] = useState(false);
+  const [refineMessages, setRefineMessages] = useState<ChatMsg[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const refineScrollRef = useRef<HTMLDivElement>(null);
   const templateUsedRef = useRef(false);
 
   useEffect(() => {
@@ -316,7 +322,6 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
 
   useEffect(() => {
     if (generatedContent) {
-      setEditorHtml(""); // reset first to trigger re-render
       setEditableFields({ ...collectedFields });
     }
   }, [generatedContent]);
@@ -418,6 +423,39 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
     exportEditorAsPdf(html, docTitle);
   };
 
+  const handleRefine = async () => {
+    const msg = refineInput.trim();
+    if (!msg || refining || !sessionId) return;
+    setRefineInput("");
+    setRefining(true);
+
+    const userMsg: ChatMsg = { id: `ru-${Date.now()}`, role: "user", content: msg };
+    setRefineMessages((prev) => [...prev, userMsg]);
+
+    try {
+      const res = await refineDraftDocument(sessionId, msg, editorHtml || generatedContent || "");
+      if (res.generated_content) {
+        setGeneratedContent(res.generated_content);
+      }
+      const assistantMsg: ChatMsg = {
+        id: `ra-${Date.now()}`,
+        role: "assistant",
+        content: res.assistant_message,
+      };
+      setRefineMessages((prev) => [...prev, assistantMsg]);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Refinement failed");
+      setRefineMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+      setRefineInput(msg);
+    } finally {
+      setRefining(false);
+    }
+  };
+
+  useEffect(() => {
+    refineScrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [refineMessages, refining]);
+
   const docTitle = templateId
     ? (TEMPLATE_LABELS[templateId] || templateId).replace(/\s+/g, "-").toLowerCase()
     : "document-draft";
@@ -450,13 +488,25 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setShowFields(!showFields)}
+              onClick={() => { setShowRefineChat(!showRefineChat); setShowFields(false); }}
               className="gap-1.5 text-xs hidden lg:flex"
-              title={showFields ? "Hide fields panel" : "Show fields panel"}
+              title={showRefineChat ? "Hide AI chat" : "Show AI chat"}
             >
-              {showFields ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
-              Fields
+              {showRefineChat ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
+              AI Refine
             </Button>
+            {Object.keys(editableFields).length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowFields(!showFields); setShowRefineChat(false); }}
+                className="gap-1.5 text-xs hidden lg:flex"
+                title={showFields ? "Hide fields" : "Show fields"}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Fields
+              </Button>
+            )}
             <Separator orientation="vertical" className="h-5" />
             <Button variant="ghost" size="sm" onClick={copyContent} className="gap-1.5 text-xs" title="Copy to clipboard">
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -479,7 +529,108 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
 
         {/* Editor Area */}
         <div className="flex gap-3" style={{ height: "calc(100vh - 300px)" }}>
-          {/* Left: Fields Panel */}
+          {/* Left: Refinement Chat Panel */}
+          {showRefineChat && (
+            <motion.div
+              initial={{ opacity: 0, x: -16, width: 0 }}
+              animate={{ opacity: 1, x: 0, width: 320 }}
+              exit={{ opacity: 0, x: -16, width: 0 }}
+              className="shrink-0 border border-border rounded-xl overflow-hidden flex flex-col bg-card shadow-sm hidden lg:flex"
+            >
+              <div className="border-b border-border px-4 py-3 bg-accent/20">
+                <h3 className="text-xs font-semibold flex items-center gap-2 uppercase tracking-wider text-muted-foreground">
+                  <Sparkles className="h-3 w-3" /> Refine with AI
+                </h3>
+              </div>
+              <ScrollArea className="flex-1">
+                <div className="p-3 space-y-3">
+                  {refineMessages.length === 0 && (
+                    <div className="text-center py-6 space-y-2">
+                      <Bot className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                      <p className="text-xs text-muted-foreground">
+                        Ask me to modify the document. For example:
+                      </p>
+                      <div className="space-y-1.5">
+                        {["Add a termination clause", "Change the notice period to 60 days", "Make the language more formal"].map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => { setRefineInput(s); }}
+                            className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-border hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {refineMessages.map((m) => (
+                    <motion.div
+                      key={m.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex gap-2 ${m.role === "user" ? "justify-end" : ""}`}
+                    >
+                      {m.role === "assistant" && (
+                        <div className="shrink-0 h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center mt-0.5">
+                          <Bot className="h-3 w-3 text-primary" />
+                        </div>
+                      )}
+                      <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs ${
+                        m.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-br-sm"
+                          : "bg-muted rounded-bl-sm"
+                      }`}>
+                        {m.content}
+                      </div>
+                    </motion.div>
+                  ))}
+                  {refining && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex gap-2"
+                    >
+                      <div className="shrink-0 h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Bot className="h-3 w-3 text-primary" />
+                      </div>
+                      <div className="bg-muted rounded-xl rounded-bl-sm px-3 py-2">
+                        <div className="flex gap-1">
+                          {[0, 0.15, 0.3].map((delay) => (
+                            <motion.div
+                              key={delay}
+                              className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40"
+                              animate={{ opacity: [0.3, 1, 0.3] }}
+                              transition={{ duration: 1, repeat: Infinity, delay }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                  <div ref={refineScrollRef} />
+                </div>
+              </ScrollArea>
+              <div className="border-t border-border p-2.5 shrink-0">
+                <form
+                  onSubmit={(e) => { e.preventDefault(); handleRefine(); }}
+                  className="flex gap-1.5"
+                >
+                  <Input
+                    placeholder="e.g., Add an indemnity clause..."
+                    value={refineInput}
+                    onChange={(e) => setRefineInput(e.target.value)}
+                    className="text-xs rounded-lg h-8"
+                    disabled={refining}
+                  />
+                  <Button type="submit" size="icon" disabled={refining || !refineInput.trim()} className="rounded-lg h-8 w-8 shrink-0">
+                    <Send className="h-3 w-3" />
+                  </Button>
+                </form>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Left: Fields Panel (togglable) */}
           {showFields && Object.keys(editableFields).length > 0 && (
             <motion.div
               initial={{ opacity: 0, x: -16, width: 0 }}

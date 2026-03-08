@@ -687,3 +687,67 @@ async def _generate_and_respond(db: AsyncSession, draft: DraftSession) -> str:
 async def confirm_and_generate(db: AsyncSession, draft: DraftSession) -> str:
     """Directly confirm and generate (called from the confirm endpoint)."""
     return await _generate_and_respond(db, draft)
+
+
+async def process_refinement_turn(
+    db: AsyncSession,
+    draft: DraftSession,
+    user_message: str,
+    current_document: str,
+) -> str:
+    """Process a refinement request on a generated document. Returns the updated document."""
+    if not settings.gemini_api_key:
+        return current_document
+
+    # Save user message
+    user_msg = DraftMessage(
+        session_id=draft.id,
+        role="user",
+        content=user_message,
+    )
+    db.add(user_msg)
+
+    meta = TEMPLATE_REGISTRY.get(draft.template_id or "", {})
+    doc_name = meta.get("name", "legal document")
+
+    client = _get_genai_client()
+    prompt = f"""You are a legal document editor. The user has a {doc_name} and wants changes.
+
+Current document:
+{current_document[:15000]}
+
+User instruction: "{user_message}"
+
+Apply the user's requested changes to the document. Return the FULL updated document in markdown format.
+Keep all existing content that wasn't asked to change. Maintain proper legal document formatting.
+Return ONLY the updated document text, no explanations or preamble."""
+
+    try:
+        response = await client.aio.models.generate_content(
+            model=settings.gemini_lite_model,
+            contents=prompt,
+        )
+        updated_content = response.text.strip()
+
+        # Update session
+        draft.generated_content = updated_content
+        draft.phase = "refining"
+
+        reply_summary = "I've updated the document based on your instructions."
+        assistant_msg = DraftMessage(
+            session_id=draft.id, role="assistant", content=reply_summary,
+        )
+        db.add(assistant_msg)
+        await db.commit()
+        await db.refresh(draft)
+
+        return updated_content
+    except Exception as e:
+        logger.warning(f"[DraftChat] Refinement failed: {e}")
+        reply = "Sorry, I couldn't process that refinement. Please try again."
+        assistant_msg = DraftMessage(
+            session_id=draft.id, role="assistant", content=reply,
+        )
+        db.add(assistant_msg)
+        await db.commit()
+        return current_document
