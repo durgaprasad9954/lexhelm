@@ -8,9 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { ArrowLeft, Send, FileText, User, Bot, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, FileText, User, Bot, Loader2, Quote } from "lucide-react";
 import { toast } from "sonner";
-import { getDocSession, chatWithDoc, type DocSessionDetail, type DocMessage, type Citation } from "@/lib/api";
+import { getDocSession, chatWithDoc, type DocSessionDetail, type DocMessage } from "@/lib/api";
 import { CitationCard } from "./citation-card";
 import { Linkify } from "@/lib/linkify";
 import ReactMarkdown from "react-markdown";
@@ -273,23 +273,6 @@ export default function DocChatSessionPage() {
                         </div>
                       )}
                     </div>
-                    {m.role === "assistant" && m.citations && m.citations.length > 0 && (
-                      <div className="mt-2 space-y-1.5 w-full">
-                        <motion.p
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.4 }}
-                          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 ml-11"
-                        >
-                          Sources ({m.citations.length})
-                        </motion.p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {m.citations.map((c, i) => (
-                            <CitationCard key={i} citation={c} index={i} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -315,17 +298,6 @@ export default function DocChatSessionPage() {
                         ))}
                       </div>
                     </div>
-                  </div>
-                  <div className="ml-11 mt-2 space-y-1.5 max-w-[75%]">
-                    {[0, 1].map((i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: [0.3, 0.5, 0.3] }}
-                        transition={{ duration: 1.5, repeat: Infinity, delay: 0.8 + i * 0.2 }}
-                        className="h-10 rounded-xl bg-amber-100/30 dark:bg-amber-900/10 border border-border/30"
-                      />
-                    ))}
                   </div>
                 </motion.div>
               )}
@@ -364,6 +336,52 @@ export default function DocChatSessionPage() {
             </form>
           </div>
         </div>
+
+        {/* Sources sidebar (right) */}
+        <motion.div
+          initial={{ opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="w-72 border-l border-border overflow-y-auto p-4 space-y-3 shrink-0 hidden lg:block bg-accent/10"
+        >
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            <Quote className="h-3.5 w-3.5 text-amber-500" />
+            Sources
+          </h3>
+          {(() => {
+            const allCitations = messages
+              .filter((m) => m.role === "assistant" && m.citations && m.citations.length > 0)
+              .flatMap((m) => m.citations!);
+            if (sending) {
+              return (
+                <div className="space-y-2">
+                  {[0, 1].map((i) => (
+                    <motion.div
+                      key={i}
+                      animate={{ opacity: [0.3, 0.5, 0.3] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
+                      className="h-16 rounded-xl bg-amber-100/30 dark:bg-amber-900/10 border border-border/30"
+                    />
+                  ))}
+                </div>
+              );
+            }
+            if (allCitations.length === 0) {
+              return (
+                <p className="text-xs text-muted-foreground italic">
+                  Sources from the document will appear here as you ask questions.
+                </p>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                {allCitations.map((c, i) => (
+                  <CitationCard key={i} citation={c} index={i} />
+                ))}
+              </div>
+            );
+          })()}
+        </motion.div>
       </div>
     </div>
   );
