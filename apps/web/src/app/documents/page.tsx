@@ -27,6 +27,7 @@ import {
   type Template, type DraftChatResponse,
 } from "@/lib/api";
 import { LegalEditor } from "@/components/editor/legal-editor";
+import { useSidebar } from "@/lib/sidebar-context";
 
 interface ChatMsg {
   id: string;
@@ -62,6 +63,7 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("ai-draft");
   const [preselectedTemplate, setPreselectedTemplate] = useState<string | undefined>();
+  const [editorMode, setEditorMode] = useState(false);
 
   useEffect(() => {
     listTemplates()
@@ -77,41 +79,45 @@ export default function DocumentsPage() {
 
   return (
     <div className="min-h-full">
-      {/* Header */}
-      <div className="border-b border-border bg-gradient-to-r from-amber-500/5 to-orange-500/5 px-6 py-8 md:px-10">
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex items-center gap-3"
-        >
-          <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
-            <FileText className="h-5 w-5 text-amber-500" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Document Studio</h1>
-            <p className="text-sm text-muted-foreground">Draft, edit, and export legal documents with AI assistance.</p>
-          </div>
-        </motion.div>
-      </div>
+      {/* Header — hidden in editor mode */}
+      {!editorMode && (
+        <div className="border-b border-border bg-gradient-to-r from-amber-500/5 to-orange-500/5 px-6 py-8 md:px-10">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="flex items-center gap-3"
+          >
+            <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
+              <FileText className="h-5 w-5 text-amber-500" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Document Studio</h1>
+              <p className="text-sm text-muted-foreground">Draft, edit, and export legal documents with AI assistance.</p>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
-      <div className="p-6 md:p-10">
+      <div className={editorMode ? "p-3" : "p-6 md:p-10"}>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="ai-draft" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <Wand2 className="h-3.5 w-3.5" /> AI Draft
-            </TabsTrigger>
-            <TabsTrigger value="templates" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <FileText className="h-3.5 w-3.5" /> Templates
-            </TabsTrigger>
-            <TabsTrigger value="parse" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <Upload className="h-3.5 w-3.5" /> Parse
-            </TabsTrigger>
-          </TabsList>
+          {!editorMode && (
+            <TabsList className="bg-muted/50">
+              <TabsTrigger value="ai-draft" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <Wand2 className="h-3.5 w-3.5" /> AI Draft
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <FileText className="h-3.5 w-3.5" /> Templates
+              </TabsTrigger>
+              <TabsTrigger value="parse" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <Upload className="h-3.5 w-3.5" /> Parse
+              </TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="ai-draft">
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-              <AIDraftTab preselectedTemplate={preselectedTemplate} onTemplateUsed={() => setPreselectedTemplate(undefined)} />
+              <AIDraftTab preselectedTemplate={preselectedTemplate} onTemplateUsed={() => setPreselectedTemplate(undefined)} onEditorModeChange={setEditorMode} />
             </motion.div>
           </TabsContent>
 
@@ -291,10 +297,12 @@ async function exportEditorAsDocx(editorHtml: string, title: string) {
 }
 
 /* ───────── AI Draft Tab ───────── */
-function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
+function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }: {
   preselectedTemplate?: string;
   onTemplateUsed: () => void;
+  onEditorModeChange: (v: boolean) => void;
 }) {
+  const { setCollapsed } = useSidebar();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -323,6 +331,8 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
   useEffect(() => {
     if (generatedContent) {
       setEditableFields({ ...collectedFields });
+      setCollapsed(true);
+      onEditorModeChange(true);
     }
   }, [generatedContent]);
 
@@ -395,6 +405,8 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
   };
 
   const resetChat = () => {
+    setCollapsed(false);
+    onEditorModeChange(false);
     setSessionId(null);
     setMessages([]);
     setInput("");
@@ -479,7 +491,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
               <span className="text-sm font-semibold">
                 {templateId ? TEMPLATE_LABELS[templateId] || templateId : "Document"}
               </span>
-              <Badge variant="default" className="text-[10px] gap-1 px-2 py-0.5">
+              <Badge variant="default" className="text-[11px] gap-1 px-2 py-0.5">
                 <CheckCircle2 className="h-3 w-3" /> Ready
               </Badge>
             </div>
@@ -528,7 +540,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
         </div>
 
         {/* Editor Area */}
-        <div className="flex gap-3" style={{ height: "calc(100vh - 300px)" }}>
+        <div className="flex gap-3" style={{ height: "calc(100vh - 100px)" }}>
           {/* Left: Refinement Chat Panel */}
           {showRefineChat && (
             <motion.div
@@ -647,7 +659,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
                 <div className="p-3 space-y-2.5">
                   {Object.entries(editableFields).map(([key, val]) => (
                     <div key={key}>
-                      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
+                      <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
                         {key.replace(/_/g, " ")}
                       </label>
                       {val.length > 60 ? (
@@ -970,10 +982,10 @@ function TemplatesTab({ templates, onChatWithTemplate }: {
             <CardContent className="space-y-3 flex-1 flex flex-col justify-end">
               <div className="flex flex-wrap gap-1.5">
                 {t.required_fields.slice(0, 4).map((p) => (
-                  <Badge key={p} variant="default" className="text-[10px]">{p.replace(/_/g, " ")}</Badge>
+                  <Badge key={p} variant="default" className="text-[11px]">{p.replace(/_/g, " ")}</Badge>
                 ))}
                 {t.required_fields.length > 4 && (
-                  <Badge variant="secondary" className="text-[10px]">+{t.required_fields.length - 4} more</Badge>
+                  <Badge variant="secondary" className="text-[11px]">+{t.required_fields.length - 4} more</Badge>
                 )}
               </div>
               <Button size="sm" onClick={() => onChatWithTemplate(t.template_id)} className="gap-1.5 rounded-lg w-full mt-2">
@@ -1041,7 +1053,7 @@ function ParseTab() {
               <p className="text-sm font-medium">{loading ? "Analyzing..." : "Drop a contract file here"}</p>
               <div className="flex items-center justify-center gap-3 mt-3">
                 {["PDF", "DOCX", "TXT"].map((fmt) => (
-                  <span key={fmt} className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                  <span key={fmt} className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
                     <File className="h-3 w-3" />
                     {fmt}
                   </span>

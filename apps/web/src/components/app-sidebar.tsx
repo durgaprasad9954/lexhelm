@@ -15,9 +15,12 @@ import {
   ChevronUp,
   Sparkles,
   ShieldCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { useSidebar } from "@/lib/sidebar-context";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: Home, color: "text-blue-500" },
@@ -57,6 +60,7 @@ function UserAvatar({ user }: { user: { name: string; picture?: string } }) {
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, org, logout } = useAuth();
+  const { collapsed, toggle } = useSidebar();
   const isAdmin = user?.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -72,20 +76,25 @@ export function AppSidebar() {
   }, [menuOpen]);
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <aside className={cn(
+      "flex h-screen flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-200",
+      collapsed ? "w-16" : "w-64",
+    )}>
       {/* Brand */}
-      <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary shadow-sm">
+      <div className={cn("flex items-center gap-3 py-5", collapsed ? "justify-center px-2" : "px-5")}>
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary shadow-sm shrink-0">
           <Scale className="h-5 w-5 text-primary-foreground" />
         </div>
-        <div className="flex flex-col">
-          <span className="text-base font-bold tracking-tight">LexHelm</span>
-          <span className="text-[10px] font-medium text-muted-foreground">Legal Intelligence</span>
-        </div>
+        {!collapsed && (
+          <div className="flex flex-col">
+            <span className="text-base font-bold tracking-tight">LexHelm</span>
+            <span className="text-[11px] font-medium text-muted-foreground">Legal Intelligence</span>
+          </div>
+        )}
       </div>
 
       {/* Org */}
-      {org && (
+      {org && !collapsed && (
         <div className="mx-3 mb-2 rounded-lg bg-accent/50 px-3 py-2">
           <div className="flex items-center gap-2">
             <Building2 className="h-3.5 w-3.5 text-primary/60" />
@@ -95,18 +104,22 @@ export function AppSidebar() {
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-2">
-        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-          Navigation
-        </p>
+      <nav className={cn("flex-1 space-y-1 py-2", collapsed ? "px-2" : "px-3")}>
+        {!collapsed && (
+          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            Navigation
+          </p>
+        )}
         {NAV.map(({ href, label, icon: Icon, color }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link
               key={href}
               href={href}
+              title={collapsed ? label : undefined}
               className={cn(
-                "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200",
+                collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
                 active
                   ? "bg-primary/10 text-primary shadow-sm"
                   : "text-sidebar-foreground/60 hover:bg-accent hover:text-sidebar-foreground",
@@ -119,9 +132,9 @@ export function AppSidebar() {
                   transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                 />
               )}
-              <Icon className={cn("relative h-4 w-4 transition-colors", active ? "text-primary" : color + " group-hover:text-foreground")} />
-              <span className="relative">{label}</span>
-              {active && (
+              <Icon className={cn("relative h-4 w-4 transition-colors shrink-0", active ? "text-primary" : color + " group-hover:text-foreground")} />
+              {!collapsed && <span className="relative">{label}</span>}
+              {active && !collapsed && (
                 <motion.div
                   layoutId="sidebar-dot"
                   className="absolute right-2 h-1.5 w-1.5 rounded-full bg-primary"
@@ -134,13 +147,17 @@ export function AppSidebar() {
 
         {isAdmin && (
           <>
-            <p className="mt-4 mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              Admin
-            </p>
+            {!collapsed && (
+              <p className="mt-4 mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                Admin
+              </p>
+            )}
             <Link
               href="/admin"
+              title={collapsed ? "Admin" : undefined}
               className={cn(
-                "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200",
+                collapsed ? "justify-center px-2 py-2.5 mt-4" : "gap-3 px-3 py-2.5",
                 pathname.startsWith("/admin")
                   ? "bg-primary/10 text-primary shadow-sm"
                   : "text-sidebar-foreground/60 hover:bg-accent hover:text-sidebar-foreground",
@@ -153,9 +170,9 @@ export function AppSidebar() {
                   transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                 />
               )}
-              <ShieldCheck className={cn("relative h-4 w-4 transition-colors", pathname.startsWith("/admin") ? "text-primary" : "text-cyan-500 group-hover:text-foreground")} />
-              <span className="relative">Admin</span>
-              {pathname.startsWith("/admin") && (
+              <ShieldCheck className={cn("relative h-4 w-4 transition-colors shrink-0", pathname.startsWith("/admin") ? "text-primary" : "text-cyan-500 group-hover:text-foreground")} />
+              {!collapsed && <span className="relative">Admin</span>}
+              {pathname.startsWith("/admin") && !collapsed && (
                 <motion.div
                   layoutId="sidebar-dot"
                   className="absolute right-2 h-1.5 w-1.5 rounded-full bg-primary"
@@ -168,16 +185,29 @@ export function AppSidebar() {
       </nav>
 
       {/* AI Badge */}
-      <div className="mx-3 mb-3">
-        <div className="rounded-lg bg-gradient-to-r from-primary/10 via-violet-500/10 to-primary/5 p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-semibold text-primary">AI Powered</span>
+      {!collapsed && (
+        <div className="mx-3 mb-3">
+          <div className="rounded-lg bg-gradient-to-r from-primary/10 via-violet-500/10 to-primary/5 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-semibold text-primary">AI Powered</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Search cases, draft documents, and analyze contracts with AI.
+            </p>
           </div>
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Search cases, draft documents, and analyze contracts with AI.
-          </p>
         </div>
+      )}
+
+      {/* Collapse toggle */}
+      <div className={cn("flex mb-1", collapsed ? "justify-center px-2" : "px-3")}>
+        <button
+          onClick={toggle}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+        >
+          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
       </div>
 
       {/* User Profile & Menu */}
@@ -195,7 +225,7 @@ export function AppSidebar() {
                 <p className="text-sm font-semibold truncate">{user.name}</p>
                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                 {org && (
-                  <p className="mt-1 text-[10px] text-muted-foreground/60 truncate">
+                  <p className="mt-1 text-[11px] text-muted-foreground/60 truncate">
                     {org.name}
                   </p>
                 )}
@@ -216,24 +246,31 @@ export function AppSidebar() {
 
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="flex w-full items-center gap-3 px-4 py-3.5 hover:bg-sidebar-accent/50 transition-colors"
+          className={cn(
+            "flex w-full items-center hover:bg-sidebar-accent/50 transition-colors",
+            collapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3.5",
+          )}
         >
           {user ? (
             <>
               <UserAvatar user={user} />
-              <div className="min-w-0 flex-1 text-left">
-                <p className="text-xs font-semibold truncate">{user.name}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
-              </div>
-              <motion.div
-                animate={{ rotate: menuOpen ? 180 : 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-              </motion.div>
+              {!collapsed && (
+                <>
+                  <div className="min-w-0 flex-1 text-left">
+                    <p className="text-xs font-semibold truncate">{user.name}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                  <motion.div
+                    animate={{ rotate: menuOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                  </motion.div>
+                </>
+              )}
             </>
           ) : (
-            <p className="text-xs text-muted-foreground">LexHelm V2</p>
+            !collapsed && <p className="text-xs text-muted-foreground">LexHelm V2</p>
           )}
         </button>
       </div>

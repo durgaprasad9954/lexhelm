@@ -6,9 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, ExternalLink, ChevronLeft, ChevronRight, Scale, Sparkles } from "lucide-react";
+import {
+  Search, ExternalLink, ChevronLeft, ChevronRight, Scale, Sparkles,
+  Gavel, BookOpen, Landmark, Shield, Users, FileSearch,
+} from "lucide-react";
 import { searchCases, type SearchResult, type SearchResponse } from "@/lib/api";
 import { Linkify } from "@/lib/linkify";
+
+const EXAMPLE_QUERIES = [
+  { label: "Tenant eviction rights", query: "tenant eviction rights India", icon: Shield, color: "text-blue-500", bg: "bg-blue-500/10" },
+  { label: "Section 498A dowry", query: "section 498A IPC dowry harassment", icon: Gavel, color: "text-rose-500", bg: "bg-rose-500/10" },
+  { label: "Arbitration clause validity", query: "arbitration clause unilateral validity", icon: BookOpen, color: "text-amber-500", bg: "bg-amber-500/10" },
+  { label: "Right to privacy", query: "right to privacy fundamental right", icon: Users, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { label: "Cheque bounce 138 NI Act", query: "dishonour cheque section 138 negotiable instruments", icon: FileSearch, color: "text-violet-500", bg: "bg-violet-500/10" },
+  { label: "Supreme Court bail guidelines", query: "supreme court bail conditions guidelines", icon: Landmark, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+];
+
+const VALUE_PROPS = [
+  "Search across 100M+ Indian legal documents",
+  "Supreme Court, High Courts & Tribunals",
+  "Statutes, judgments & case law",
+];
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -17,12 +35,14 @@ export default function SearchPage() {
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const doSearch = async (p = 1) => {
-    if (!query.trim()) return;
+  const doSearch = async (q?: string, p = 1) => {
+    const searchQuery = q || query;
+    if (!searchQuery.trim()) return;
+    if (q) setQuery(q);
     setLoading(true);
     setError(null);
     try {
-      const r = await searchCases(query, p);
+      const r = await searchCases(searchQuery, p);
       setResult(r);
       setPage(p);
     } catch (e: unknown) {
@@ -43,24 +63,34 @@ export default function SearchPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-1">
             <div className="h-9 w-9 rounded-lg bg-violet-500/10 flex items-center justify-center">
               <Search className="h-5 w-5 text-violet-500" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Case Search</h1>
-              <p className="text-sm text-muted-foreground">Search Indian legal cases via IndianKanoon.</p>
+              <p className="text-sm text-muted-foreground">Search Indian legal cases, statutes, and judgments powered by IndianKanoon.</p>
             </div>
           </div>
 
+          {/* Value props */}
+          <div className="flex flex-wrap gap-4 mt-3 mb-5">
+            {VALUE_PROPS.map((v) => (
+              <div key={v} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="h-1 w-1 rounded-full bg-violet-500" />
+                <span>{v}</span>
+              </div>
+            ))}
+          </div>
+
           <form
-            onSubmit={(e) => { e.preventDefault(); doSearch(1); }}
+            onSubmit={(e) => { e.preventDefault(); doSearch(); }}
             className="flex gap-2 max-w-2xl"
           >
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search cases, statutes, judgments..."
+                placeholder="e.g., tenant rights under rent control act, Section 138 NI Act..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="pl-10 h-11 bg-background/80 backdrop-blur-sm border-border/50 focus:border-primary/50"
@@ -111,18 +141,56 @@ export default function SearchPage() {
           </div>
         )}
 
+        {/* Empty state with examples */}
         {!result && !loading && !error && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center py-20 text-center"
+            className="space-y-8"
           >
-            <div className="h-16 w-16 rounded-2xl bg-primary/5 flex items-center justify-center mb-4">
-              <Scale className="h-8 w-8 text-primary/30" />
+            <div className="text-center pt-4">
+              <div className="h-14 w-14 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-4">
+                <Scale className="h-7 w-7 text-violet-500/70" />
+              </div>
+              <h2 className="text-lg font-semibold mb-1">What are you researching?</h2>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Search across Indian case law, statutes, and judgments. Try one of these common searches:
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Search for legal cases, statutes, and judgments to get started.
-            </p>
+
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 max-w-4xl mx-auto">
+              {EXAMPLE_QUERIES.map((eq, i) => (
+                <motion.div
+                  key={eq.query}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05, duration: 0.3 }}
+                >
+                  <button
+                    onClick={() => doSearch(eq.query)}
+                    className="w-full text-left group"
+                  >
+                    <Card className="transition-all duration-200 hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5">
+                      <CardContent className="flex items-center gap-3 py-4">
+                        <div className={`h-9 w-9 rounded-lg ${eq.bg} flex items-center justify-center shrink-0 transition-transform group-hover:scale-110`}>
+                          <eq.icon className={`h-4 w-4 ${eq.color}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium group-hover:text-primary transition-colors">{eq.label}</p>
+                          <p className="text-xs text-muted-foreground truncate">{eq.query}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">
+                Tip: Use specific legal terms, section numbers, or case names for better results.
+              </p>
+            </div>
           </motion.div>
         )}
 
@@ -138,7 +206,7 @@ export default function SearchPage() {
             >
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  <span className="font-semibold text-foreground">{result.total.toLocaleString()}</span> results &mdash; page {result.page} of {totalPages}
+                  <span className="font-semibold text-foreground">{result.total.toLocaleString()}</span> results for &ldquo;<span className="font-medium text-foreground">{query}</span>&rdquo; &mdash; page {result.page} of {totalPages}
                 </p>
               </div>
 
@@ -157,14 +225,14 @@ export default function SearchPage() {
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-3 pt-4">
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => doSearch(page - 1)} className="gap-1">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => doSearch(undefined, page - 1)} className="gap-1">
                     <ChevronLeft className="h-4 w-4" />
                     Previous
                   </Button>
                   <span className="text-sm text-muted-foreground font-medium px-3">
                     {page} / {totalPages}
                   </span>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => doSearch(page + 1)} className="gap-1">
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => doSearch(undefined, page + 1)} className="gap-1">
                     Next
                     <ChevronRight className="h-4 w-4" />
                   </Button>

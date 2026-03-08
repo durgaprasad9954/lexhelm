@@ -5,11 +5,22 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Upload, FileText, MessageSquare, Clock, CloudUpload, File } from "lucide-react";
+import {
+  Upload, FileText, MessageSquare, Clock, CloudUpload, File,
+  Shield, ListChecks, Scale, AlertTriangle, HelpCircle,
+} from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { listDocSessions, uploadDocument, type DocSession } from "@/lib/api";
+
+const CAPABILITIES = [
+  { icon: ListChecks, label: "Summarize key terms & obligations", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { icon: AlertTriangle, label: "Identify risky or unfavorable clauses", color: "text-amber-500", bg: "bg-amber-500/10" },
+  { icon: Shield, label: "Check for missing standard protections", color: "text-blue-500", bg: "bg-blue-500/10" },
+  { icon: HelpCircle, label: "Ask any question about the document", color: "text-violet-500", bg: "bg-violet-500/10" },
+  { icon: Scale, label: "Compare terms against legal standards", color: "text-rose-500", bg: "bg-rose-500/10" },
+];
 
 export default function DocChatPage() {
   const router = useRouter();
@@ -69,66 +80,103 @@ export default function DocChatPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Document Chat</h1>
-            <p className="text-sm text-muted-foreground">Upload a document and chat with it using AI.</p>
+            <p className="text-sm text-muted-foreground">Upload contracts, agreements, or legal documents and chat with AI to analyze them.</p>
           </div>
         </motion.div>
       </div>
 
       <div className="p-6 md:p-10 space-y-8">
-        {/* Upload zone */}
+        {/* Upload zone + capabilities side by side */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.4 }}
+          className="grid gap-6 lg:grid-cols-5"
         >
-        <div
-          {...getRootProps()}
-          className={`relative group cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-all duration-300 ${
-            isDragActive
-              ? "border-primary bg-primary/5 scale-[1.01]"
-              : "border-border/50 hover:border-primary/40 hover:bg-accent/30"
-          } ${uploading ? "opacity-50 pointer-events-none" : ""}`}
-        >
-          <input {...getInputProps()} />
-          <motion.div
-            animate={isDragActive ? { scale: 1.1, y: -4 } : { scale: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="flex flex-col items-center"
-          >
-            <div className={`h-14 w-14 rounded-2xl flex items-center justify-center mb-4 transition-colors duration-300 ${
-              isDragActive ? "bg-primary/10" : "bg-muted"
-            }`}>
-              <CloudUpload className={`h-7 w-7 transition-colors duration-300 ${
-                isDragActive ? "text-primary" : "text-muted-foreground"
-              }`} />
+          {/* Upload zone */}
+          <div className="lg:col-span-3">
+            <div
+              {...getRootProps()}
+              className={`relative group cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-all duration-300 h-full flex items-center justify-center ${
+                isDragActive
+                  ? "border-primary bg-primary/5 scale-[1.01]"
+                  : "border-border/50 hover:border-primary/40 hover:bg-accent/30"
+              } ${uploading ? "opacity-50 pointer-events-none" : ""}`}
+            >
+              <input {...getInputProps()} />
+              <motion.div
+                animate={isDragActive ? { scale: 1.1, y: -4 } : { scale: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-col items-center"
+              >
+                <div className={`h-14 w-14 rounded-2xl flex items-center justify-center mb-4 transition-colors duration-300 ${
+                  isDragActive ? "bg-primary/10" : "bg-muted"
+                }`}>
+                  <CloudUpload className={`h-7 w-7 transition-colors duration-300 ${
+                    isDragActive ? "text-primary" : "text-muted-foreground"
+                  }`} />
+                </div>
+                {uploading ? (
+                  <div className="space-y-2">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="mx-auto h-5 w-5 rounded-full border-2 border-primary border-t-transparent"
+                    />
+                    <p className="text-sm text-muted-foreground font-medium">Uploading & analyzing...</p>
+                  </div>
+                ) : isDragActive ? (
+                  <p className="text-sm text-primary font-semibold">Drop the file here</p>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-foreground">Drag & drop a document, or click to select</p>
+                    <p className="text-xs text-muted-foreground mt-1.5">PDF, DOCX, or TXT &mdash; max 10 MB</p>
+                    <div className="flex items-center justify-center gap-3 mt-4">
+                      {["PDF", "DOCX", "TXT"].map((fmt) => (
+                        <span key={fmt} className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                          <File className="h-3 w-3" />
+                          {fmt}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </motion.div>
             </div>
-            {uploading ? (
-              <div className="space-y-2">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  className="mx-auto h-5 w-5 rounded-full border-2 border-primary border-t-transparent"
-                />
-                <p className="text-sm text-muted-foreground font-medium">Uploading & analyzing...</p>
-              </div>
-            ) : isDragActive ? (
-              <p className="text-sm text-primary font-semibold">Drop the file here</p>
-            ) : (
-              <>
-                <p className="text-sm font-semibold text-foreground">Drag & drop a document, or click to select</p>
-                <p className="text-xs text-muted-foreground mt-1.5">PDF, DOCX, or TXT &mdash; max 10 MB</p>
-                <div className="flex items-center justify-center gap-3 mt-4">
-                  {["PDF", "DOCX", "TXT"].map((fmt) => (
-                    <span key={fmt} className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                      <File className="h-3 w-3" />
-                      {fmt}
-                    </span>
+          </div>
+
+          {/* Capabilities panel */}
+          <div className="lg:col-span-2">
+            <Card className="h-full border-border/50">
+              <CardContent className="p-5 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold mb-1">What you can do</h3>
+                  <p className="text-xs text-muted-foreground">After uploading, ask AI anything about your document:</p>
+                </div>
+                <div className="space-y-2.5">
+                  {CAPABILITIES.map((cap, i) => (
+                    <motion.div
+                      key={cap.label}
+                      initial={{ opacity: 0, x: 8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 + i * 0.05, duration: 0.3 }}
+                      className="flex items-center gap-2.5"
+                    >
+                      <div className={`h-7 w-7 rounded-md ${cap.bg} flex items-center justify-center shrink-0`}>
+                        <cap.icon className={`h-3.5 w-3.5 ${cap.color}`} />
+                      </div>
+                      <span className="text-xs text-foreground/90">{cap.label}</span>
+                    </motion.div>
                   ))}
                 </div>
-              </>
-            )}
-          </motion.div>
-        </div>
+                <div className="pt-2 border-t border-border">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Example: &ldquo;What is the termination clause?&rdquo;, &ldquo;Are there any auto-renewal terms?&rdquo;, &ldquo;Summarize the indemnity obligations.&rdquo;
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </motion.div>
 
         {/* Sessions list */}
@@ -150,9 +198,9 @@ export default function DocChatPage() {
               className="flex flex-col items-center py-12 text-center"
             >
               <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center mb-3">
-                <Upload className="h-7 w-7 text-muted-foreground/40" />
+                <Upload className="h-7 w-7 text-muted-foreground/60" />
               </div>
-              <p className="text-sm text-muted-foreground">No sessions yet. Upload a document to get started.</p>
+              <p className="text-sm text-muted-foreground">No sessions yet. Upload a document above to get started.</p>
             </motion.div>
           ) : (
             <AnimatePresence>

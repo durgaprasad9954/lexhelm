@@ -9,12 +9,46 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { Briefcase, Play, RefreshCw, Clock, CheckCircle, XCircle, Loader2, Sparkles } from "lucide-react";
+import {
+  Briefcase, Play, RefreshCw, Clock, CheckCircle, XCircle, Loader2,
+  Search, FileText, BookOpen, Scale, Landmark, Gavel, ArrowRight,
+} from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { submitJob, getJob, listJobs, type Job } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+const JOB_TYPES = [
+  {
+    id: "deep_search",
+    label: "Deep Search",
+    icon: Search,
+    color: "text-violet-500",
+    bg: "bg-violet-500/10",
+    desc: "Searches multiple pages of Indian case law and compiles a ranked summary of the most relevant judgments, statutes, and legal provisions.",
+    output: "Ranked list of cases with citations, court names, dates, and relevance snippets.",
+    examples: [
+      "Tenant eviction rights under rent control",
+      "Section 138 NI Act cheque bounce defences",
+      "Arbitration clause unilateral appointment",
+    ],
+  },
+  {
+    id: "research",
+    label: "Research Memo",
+    icon: BookOpen,
+    color: "text-rose-500",
+    bg: "bg-rose-500/10",
+    desc: "Performs comprehensive legal research and produces a structured memo with analysis, applicable statutes, leading cases, and practical recommendations.",
+    output: "Full research memo with headings, case citations, statutory references, and conclusion.",
+    examples: [
+      "IP infringement remedies for software patents in India",
+      "FEMA compliance for outward remittance by NRIs",
+      "Employee termination notice period requirements",
+    ],
+  },
+];
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -62,8 +96,8 @@ export default function JobsPage() {
               <Briefcase className="h-5 w-5 text-rose-500" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Jobs</h1>
-              <p className="text-sm text-muted-foreground">Submit and track async research tasks.</p>
+              <h1 className="text-2xl font-bold tracking-tight">Research Jobs</h1>
+              <p className="text-sm text-muted-foreground">Submit deep legal research queries that run in the background and produce detailed results.</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={refresh} className="gap-1.5">
@@ -76,7 +110,7 @@ export default function JobsPage() {
         <Tabs defaultValue="submit" className="space-y-6">
           <TabsList className="bg-muted/50">
             <TabsTrigger value="submit" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <Play className="h-3.5 w-3.5" /> Submit
+              <Play className="h-3.5 w-3.5" /> New Job
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Briefcase className="h-3.5 w-3.5" /> History ({jobs.length})
@@ -98,9 +132,10 @@ export default function JobsPage() {
               ) : jobs.length === 0 ? (
                 <div className="flex flex-col items-center py-16 text-center">
                   <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center mb-3">
-                    <Briefcase className="h-7 w-7 text-muted-foreground/40" />
+                    <Briefcase className="h-7 w-7 text-muted-foreground/60" />
                   </div>
-                  <p className="text-sm text-muted-foreground">No jobs yet. Submit a research task to get started.</p>
+                  <p className="text-sm font-medium text-muted-foreground">No jobs yet</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Submit a research task to get started.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -144,6 +179,8 @@ function SubmitTab({ onSubmitted }: { onSubmitted: (j: Job) => void }) {
   const [query, setQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const selectedType = JOB_TYPES.find((t) => t.id === jobType) || JOB_TYPES[0];
+
   const handleSubmit = async () => {
     if (!query.trim()) return;
     setSubmitting(true);
@@ -160,41 +197,120 @@ function SubmitTab({ onSubmitted }: { onSubmitted: (j: Job) => void }) {
   };
 
   return (
-    <Card className="border-border/50 overflow-hidden">
-      <CardHeader className="bg-gradient-to-r from-rose-500/5 to-pink-500/5">
-        <div className="flex items-center gap-2 mb-1">
-          <Sparkles className="h-4 w-4 text-rose-500" />
-          <CardTitle className="text-base">Submit Research Job</CardTitle>
+    <div className="space-y-6">
+      {/* Job type cards */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Choose job type</p>
+        <div className="grid gap-3 md:grid-cols-2">
+          {JOB_TYPES.map((type, i) => (
+            <motion.div
+              key={type.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05, duration: 0.3 }}
+            >
+              <button
+                onClick={() => setJobType(type.id)}
+                className="w-full text-left"
+              >
+                <Card className={`transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
+                  jobType === type.id ? "border-primary shadow-md ring-1 ring-primary/20" : "hover:border-primary/20"
+                }`}>
+                  <CardContent className="p-5 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className={`h-10 w-10 rounded-xl ${type.bg} flex items-center justify-center shrink-0`}>
+                        <type.icon className={`h-5 w-5 ${type.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-foreground">{type.label}</p>
+                          {jobType === type.id && (
+                            <Badge variant="default" className="text-[11px] px-1.5 py-0">Selected</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{type.desc}</p>
+                      </div>
+                    </div>
+                    <div className="border-t border-border pt-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">Output</p>
+                      <p className="text-xs text-foreground/70">{type.output}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </button>
+            </motion.div>
+          ))}
         </div>
-        <CardDescription>Jobs run asynchronously and can take several minutes.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-5">
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1.5">Job Type</label>
-          <select
-            value={jobType}
-            onChange={(e) => setJobType(e.target.value)}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50"
-          >
-            <option value="deep_search">Deep Search (multi-page)</option>
-            <option value="research">Research (full analysis memo)</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1.5">Query</label>
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g., tenant rights under rent control act"
-            className="rounded-lg"
-          />
-        </div>
-        <Button onClick={handleSubmit} disabled={submitting || !query.trim()} className="gap-2 rounded-lg">
-          <Play className="h-4 w-4" />
-          {submitting ? "Submitting..." : "Submit Job"}
-        </Button>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Query input */}
+      <Card className="border-border/50">
+        <CardContent className="p-5 space-y-4">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-1.5">Research Query</label>
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={selectedType.examples[0]}
+              className="h-11 text-sm"
+              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            />
+          </div>
+
+          {/* Example queries */}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-2">Try an example</p>
+            <div className="flex flex-wrap gap-2">
+              {selectedType.examples.map((ex) => (
+                <button
+                  key={ex}
+                  onClick={() => setQuery(ex)}
+                  className="text-xs text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted px-2.5 py-1.5 rounded-lg transition-colors"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Button onClick={handleSubmit} disabled={submitting || !query.trim()} className="gap-2 h-10">
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            {submitting ? "Submitting..." : `Run ${selectedType.label}`}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* How it works */}
+      <Card className="bg-gradient-to-r from-rose-500/5 to-pink-500/5 border-rose-500/10">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Scale className="h-4 w-4 text-rose-500" />
+            <p className="text-sm font-semibold text-foreground">How research jobs work</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              { step: "1", icon: Gavel, title: "Submit your query", desc: "Describe the legal topic, question, or scenario you need researched." },
+              { step: "2", icon: Search, title: "AI researches in background", desc: "The system searches case law, statutes, and legal databases — takes 2\u20135 minutes." },
+              { step: "3", icon: FileText, title: "Get structured results", desc: "Receive a detailed memo or ranked case list with citations you can use directly." },
+            ].map((s) => (
+              <div key={s.step} className="flex items-start gap-3">
+                <div className="h-7 w-7 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
+                  <span className="text-xs font-bold text-rose-500">{s.step}</span>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-foreground">{s.title}</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -237,7 +353,7 @@ function JobCard({ job, onClick, selected }: { job: Job; onClick: () => void; se
           {config.icon}
           {job.status}
         </Badge>
-        <code className="text-[10px] text-muted-foreground font-mono bg-muted px-2 py-1 rounded-md">{job.id.slice(0, 8)}</code>
+        <code className="text-[11px] text-muted-foreground font-mono bg-muted px-2 py-1 rounded-md">{job.id.slice(0, 8)}</code>
       </CardContent>
     </Card>
   );
