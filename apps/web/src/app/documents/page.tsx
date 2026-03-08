@@ -14,8 +14,9 @@ import {
   FileText, Wand2, Upload, Copy, Check, Send, Bot, User,
   CheckCircle2, Circle, RotateCcw, FileDown, Pencil,
   ArrowLeft, CloudUpload, Sparkles, File, Printer,
-  PanelLeftClose, PanelLeftOpen, Mail,
+  PanelLeftClose, PanelLeftOpen, Mail, CheckCheck, X,
 } from "lucide-react";
+import { diffWords } from "diff";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -321,6 +322,11 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
   const [refining, setRefining] = useState(false);
   const [refineMessages, setRefineMessages] = useState<ChatMsg[]>([]);
   const [editorFlash, setEditorFlash] = useState(false);
+  const [pendingEdit, setPendingEdit] = useState<{
+    oldContent: string;
+    newContent: string;
+    instruction: string;
+  } | null>(null);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailTo, setEmailTo] = useState("");
   const [emailCc, setEmailCc] = useState("");
@@ -424,6 +430,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
     setGeneratedContent(null);
     setEditorHtml("");
     setEditableFields({});
+    setPendingEdit(null);
     templateUsedRef.current = false;
   };
 
@@ -452,12 +459,15 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
     setRefineMessages((prev) => [...prev, userMsg]);
 
     try {
-      const res = await refineDraftDocument(sessionId, msg, editorHtml || generatedContent || "");
+      const currentContent = editorHtml || generatedContent || "";
+      const res = await refineDraftDocument(sessionId, msg, currentContent);
       if (res.generated_content) {
-        setGeneratedContent(res.generated_content);
-        // Flash the editor border to signal the update
-        setEditorFlash(true);
-        setTimeout(() => setEditorFlash(false), 1500);
+        // Store as pending edit for accept/reject instead of auto-applying
+        setPendingEdit({
+          oldContent: currentContent,
+          newContent: res.generated_content,
+          instruction: msg,
+        });
       }
       const assistantMsg: ChatMsg = {
         id: `ra-${Date.now()}`,
@@ -502,6 +512,19 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
     } finally {
       setEmailSending(false);
     }
+  };
+
+  const acceptEdit = () => {
+    if (!pendingEdit) return;
+    setGeneratedContent(pendingEdit.newContent);
+    setEditorFlash(true);
+    setTimeout(() => setEditorFlash(false), 1500);
+    setPendingEdit(null);
+  };
+
+  const rejectEdit = () => {
+    setPendingEdit(null);
+    toast("Edit discarded");
   };
 
   const docTitle = templateId
@@ -587,8 +610,79 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
           </div>
         </div>
 
+        {/* Pending Edit Review Banner */}
+        <AnimatePresence>
+          {pendingEdit && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: -8, height: 0 }}
+              className="rounded-xl border border-amber-500/30 bg-amber-500/5 shadow-sm overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-amber-500/20 bg-amber-500/10">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                    AI Edit: &ldquo;{pendingEdit.instruction}&rdquo;
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={acceptEdit}
+                    className="gap-1.5 text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <CheckCheck className="h-3 w-3" /> Accept
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={rejectEdit}
+                    className="gap-1.5 text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-500/10"
+                  >
+                    <X className="h-3 w-3" /> Reject
+                  </Button>
+                </div>
+              </div>
+              <ScrollArea className="max-h-64">
+                <div className="p-4 text-sm font-mono leading-relaxed whitespace-pre-wrap">
+                  {(() => {
+                    // Strip HTML tags for readable word diff
+                    const strip = (h: string) => {
+                      const d = document.createElement("div");
+                      d.innerHTML = h;
+                      return d.textContent || d.innerText || "";
+                    };
+                    const oldText = strip(pendingEdit.oldContent);
+                    const newText = strip(pendingEdit.newContent);
+                    const parts = diffWords(oldText, newText);
+                    return parts.map((part, i) => {
+                      if (part.added) {
+                        return (
+                          <span key={i} className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-0.5 rounded-sm">
+                            {part.value}
+                          </span>
+                        );
+                      }
+                      if (part.removed) {
+                        return (
+                          <span key={i} className="bg-red-500/20 text-red-600 dark:text-red-400 line-through px-0.5 rounded-sm">
+                            {part.value}
+                          </span>
+                        );
+                      }
+                      return <span key={i}>{part.value}</span>;
+                    });
+                  })()}
+                </div>
+              </ScrollArea>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Editor Area */}
-        <div className="flex gap-3" style={{ height: "calc(100vh - 100px)" }}>
+        <div className="flex gap-3" style={{ height: pendingEdit ? "calc(100vh - 380px)" : "calc(100vh - 100px)" }}>
           {/* Left: Refinement Chat Panel */}
           {showRefineChat && (
             <motion.div
@@ -676,13 +770,13 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
                   className="flex gap-1.5"
                 >
                   <Input
-                    placeholder="e.g., Add an indemnity clause..."
+                    placeholder={pendingEdit ? "Accept or reject the pending edit first..." : "e.g., Add an indemnity clause..."}
                     value={refineInput}
                     onChange={(e) => setRefineInput(e.target.value)}
                     className="text-xs rounded-lg h-8"
-                    disabled={refining}
+                    disabled={refining || !!pendingEdit}
                   />
-                  <Button type="submit" size="icon" disabled={refining || !refineInput.trim()} className="rounded-lg h-8 w-8 shrink-0">
+                  <Button type="submit" size="icon" disabled={refining || !!pendingEdit || !refineInput.trim()} className="rounded-lg h-8 w-8 shrink-0">
                     <Send className="h-3 w-3" />
                   </Button>
                 </form>
