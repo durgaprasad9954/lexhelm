@@ -70,32 +70,20 @@ async def _extract_pdf_text(content: bytes) -> str:
 
 
 async def _extract_docx_text(content: bytes) -> str:
-    """Extract text from DOCX using python-docx or Gemini fallback."""
-    try:
-        import docx
-        doc = docx.Document(io.BytesIO(content))
-        return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
-    except ImportError:
-        # No python-docx — use Gemini
-        if not settings.gemini_api_key:
-            return "[DOCX extraction requires python-docx or GEMINI_API_KEY]"
+    """Extract text from DOCX using python-docx."""
+    import docx as python_docx
 
-        import base64
-        client = _get_genai_client()
-        b64 = base64.standard_b64encode(content).decode()
+    doc = python_docx.Document(io.BytesIO(content))
+    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
 
-        response = await client.aio.models.generate_content(
-            model=settings.gemini_lite_model,
-            contents=[
-                {
-                    "parts": [
-                        {"inline_data": {"mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "data": b64}},
-                        {"text": "Extract ALL text from this document exactly as written. Preserve paragraph structure."},
-                    ]
-                }
-            ],
-        )
-        return response.text.strip()
+    # Also extract text from tables
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+            if cells:
+                paragraphs.append(" | ".join(cells))
+
+    return "\n\n".join(paragraphs)
 
 
 # ── Analysis ─────────────────────────────────────────────────────

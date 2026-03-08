@@ -24,6 +24,9 @@ google-cloud-iam>=2.14.0,<3.0.0
 # Templates (document generation)
 Jinja2>=3.1.0,<4.0.0
 
+# Document parsing (DOCX text extraction)
+python-docx>=1.1.0,<2.0.0
+
 # AI (Gemini — for contract parsing & future agents)
 google-genai>=1.0.0
 
