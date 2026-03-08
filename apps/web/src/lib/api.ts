@@ -220,6 +220,22 @@ export const getDraftChatSession = (id: string) =>
 export const listDraftChatSessions = (limit = 20) =>
   apiFetch<{ sessions: DraftChatSessionSummary[] }>(`/draft-chat?limit=${limit}`);
 
+// ---------- Email ----------
+export interface SendDocumentEmailRequest {
+  to: string[];
+  cc?: string[];
+  subject: string;
+  note?: string;
+  document_html: string;
+  document_title: string;
+}
+export const sendDocumentEmail = (req: SendDocumentEmailRequest) =>
+  apiFetch<{ message: string }>("/email/send-document", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+
 // ---------- Jobs ----------
 export interface Job {
   id: string;

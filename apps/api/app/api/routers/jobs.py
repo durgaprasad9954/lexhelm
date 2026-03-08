@@ -1,8 +1,9 @@
 """Async job endpoints — submit long-running tasks, poll for results."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.rate_limit import RateLimit
 from app.db.session import async_session_factory
 from app.schemas.job import JobListResponse, JobResponse, JobSubmitRequest
 from app.services import job_service
@@ -11,8 +12,10 @@ router = APIRouter()
 
 ALLOWED_JOB_TYPES = {"deep_search", "research"}
 
+_submit_limit = RateLimit(max_requests=10, window_seconds=3600, key_prefix="job_submit")
 
-@router.post("/submit", response_model=JobResponse, status_code=202)
+
+@router.post("/submit", response_model=JobResponse, status_code=202, dependencies=[Depends(_submit_limit)])
 async def submit_job(req: JobSubmitRequest):
     """Submit a long-running job. Returns immediately with a job ID to poll."""
     if req.job_type not in ALLOWED_JOB_TYPES:

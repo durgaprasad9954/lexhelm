@@ -112,3 +112,69 @@ def send_beta_approved_email(email: str, name: Optional[str] = None) -> None:
         logger.info("Beta approved email sent to %s", email)
     except Exception:
         logger.exception("Failed to send approval email to %s", email)
+
+
+def send_document_email(
+    to: list[str],
+    cc: list[str],
+    subject: str,
+    document_html: str,
+    document_title: str,
+    sender_name: str,
+    sender_email: str,
+    note: Optional[str] = None,
+) -> None:
+    """Send a legal document to client(s) with the sender CC'd."""
+    if not _ensure_client():
+        return
+
+    note_html = ""
+    if note:
+        # Escape HTML in user note
+        import html as html_module
+        escaped_note = html_module.escape(note).replace("\n", "<br>")
+        note_html = f"""
+        <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+          <p style="margin: 0; font-size: 14px; color: #374151; white-space: pre-wrap;">{escaped_note}</p>
+        </div>
+        """
+
+    html = f"""
+    <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 700px; margin: 0 auto; color: #1a1a1a;">
+      <div style="background: linear-gradient(135deg, #8b5cf6, #a855f7); padding: 24px 28px; border-radius: 12px 12px 0 0;">
+        <h2 style="color: white; margin: 0; font-size: 18px;">{document_title}</h2>
+        <p style="color: rgba(255,255,255,0.85); margin: 6px 0 0; font-size: 13px;">
+          Sent by {sender_name}
+        </p>
+      </div>
+      <div style="border: 1px solid #e5e7eb; border-top: none; padding: 24px 28px; border-radius: 0 0 12px 12px;">
+        {note_html}
+        <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; background: white;">
+          <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 13px; line-height: 1.7; color: #1a1a1a;">
+            {document_html}
+          </div>
+        </div>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+        <p style="color: #9ca3af; font-size: 11px; margin: 0;">
+          Sent via <a href="{FRONTEND_URL}" style="color: #8b5cf6; text-decoration: none;">LexHelm</a>
+          &middot; AI-powered legal intelligence
+        </p>
+      </div>
+    </div>
+    """
+
+    try:
+        params: dict = {
+            "from": f"{sender_name} via LexHelm <{settings.resend_from_email}>",
+            "to": to,
+            "subject": subject,
+            "html": html,
+            "reply_to": sender_email,
+        }
+        if cc:
+            params["cc"] = cc
+
+        resend.Emails.send(params)
+        logger.info("Document email sent to %s (cc: %s) by %s", to, cc, sender_email)
+    except Exception:
+        logger.exception("Failed to send document email to %s", to)

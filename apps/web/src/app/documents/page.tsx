@@ -14,7 +14,7 @@ import {
   FileText, Wand2, Upload, Copy, Check, Send, Bot, User,
   CheckCircle2, Circle, RotateCcw, FileDown, Pencil,
   ArrowLeft, CloudUpload, Sparkles, File, Printer,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, Mail,
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ import remarkGfm from "remark-gfm";
 import {
   listTemplates, parseContract,
   startDraftChat, sendDraftMessage, confirmDraftChat,
-  refineDraftDocument,
+  refineDraftDocument, sendDocumentEmail,
   type Template, type DraftChatResponse,
 } from "@/lib/api";
 import { LegalEditor } from "@/components/editor/legal-editor";
@@ -302,7 +302,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
   onTemplateUsed: () => void;
   onEditorModeChange: (v: boolean) => void;
 }) {
-  const { setCollapsed } = useSidebar();
+  const { autoCollapse, autoExpand } = useSidebar();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -320,6 +320,13 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
   const [refineInput, setRefineInput] = useState("");
   const [refining, setRefining] = useState(false);
   const [refineMessages, setRefineMessages] = useState<ChatMsg[]>([]);
+  const [editorFlash, setEditorFlash] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailCc, setEmailCc] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailNote, setEmailNote] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const refineScrollRef = useRef<HTMLDivElement>(null);
   const templateUsedRef = useRef(false);
@@ -331,7 +338,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
   useEffect(() => {
     if (generatedContent) {
       setEditableFields({ ...collectedFields });
-      setCollapsed(true);
+      autoCollapse();
       onEditorModeChange(true);
     }
   }, [generatedContent]);
@@ -405,7 +412,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
   };
 
   const resetChat = () => {
-    setCollapsed(false);
+    autoExpand();
     onEditorModeChange(false);
     setSessionId(null);
     setMessages([]);
@@ -448,6 +455,9 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
       const res = await refineDraftDocument(sessionId, msg, editorHtml || generatedContent || "");
       if (res.generated_content) {
         setGeneratedContent(res.generated_content);
+        // Flash the editor border to signal the update
+        setEditorFlash(true);
+        setTimeout(() => setEditorFlash(false), 1500);
       }
       const assistantMsg: ChatMsg = {
         id: `ra-${Date.now()}`,
@@ -467,6 +477,32 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
   useEffect(() => {
     refineScrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [refineMessages, refining]);
+
+  const handleEmailSend = async () => {
+    if (!emailTo.trim() || emailSending) return;
+    setEmailSending(true);
+    try {
+      const html = editorHtml || generatedContent || "";
+      await sendDocumentEmail({
+        to: emailTo.split(",").map((e) => e.trim()).filter(Boolean),
+        cc: emailCc ? emailCc.split(",").map((e) => e.trim()).filter(Boolean) : undefined,
+        subject: emailSubject || docTitle,
+        note: emailNote || undefined,
+        document_html: html,
+        document_title: docTitle,
+      });
+      toast.success("Document sent successfully");
+      setShowEmailDialog(false);
+      setEmailTo("");
+      setEmailCc("");
+      setEmailSubject("");
+      setEmailNote("");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to send email");
+    } finally {
+      setEmailSending(false);
+    }
+  };
 
   const docTitle = templateId
     ? (TEMPLATE_LABELS[templateId] || templateId).replace(/\s+/g, "-").toLowerCase()
@@ -535,6 +571,18 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
               title="Download as Word document"
             >
               <FileDown className="h-3.5 w-3.5" /> Export DOCX
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!emailSubject) setEmailSubject(templateId ? TEMPLATE_LABELS[templateId] || docTitle : docTitle);
+                setShowEmailDialog(true);
+              }}
+              className="gap-1.5 text-xs"
+              title="Email document to client"
+            >
+              <Mail className="h-3.5 w-3.5" /> Email
             </Button>
           </div>
         </div>
@@ -688,13 +736,123 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
           )}
 
           {/* Right: Rich Text Editor */}
-          <div className="flex-1 border border-border rounded-xl overflow-hidden flex flex-col bg-card shadow-sm">
+          <div className={`flex-1 border rounded-xl overflow-hidden flex flex-col bg-card shadow-sm transition-all duration-500 ${
+            editorFlash ? "border-primary ring-2 ring-primary/20" : "border-border"
+          }`}>
+            {editorFlash && (
+              <motion.div
+                initial={{ opacity: 1 }}
+                animate={{ opacity: 0 }}
+                transition={{ duration: 1.5 }}
+                className="absolute inset-0 bg-primary/5 pointer-events-none z-10 rounded-xl"
+              />
+            )}
             <LegalEditor
               content={generatedContent}
               onChange={(html) => setEditorHtml(html)}
             />
           </div>
         </div>
+
+        {/* Email Dialog */}
+        <AnimatePresence>
+          {showEmailDialog && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+              onClick={(e) => { if (e.target === e.currentTarget) setShowEmailDialog(false); }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 8 }}
+                className="w-full max-w-lg mx-4"
+              >
+                <Card className="shadow-2xl">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <Mail className="h-4 w-4 text-primary" />
+                        </div>
+                        <CardTitle className="text-base">Email Document</CardTitle>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowEmailDialog(false)}>
+                        <span className="text-lg leading-none">&times;</span>
+                      </Button>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Send this document directly to your client. You will be CC&apos;d automatically.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground block mb-1">To (client email) *</label>
+                      <Input
+                        placeholder="client@example.com"
+                        value={emailTo}
+                        onChange={(e) => setEmailTo(e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">Separate multiple emails with commas</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground block mb-1">CC (optional)</label>
+                      <Input
+                        placeholder="colleague@firm.com"
+                        value={emailCc}
+                        onChange={(e) => setEmailCc(e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground block mb-1">Subject</label>
+                      <Input
+                        placeholder="Document for your review"
+                        value={emailSubject}
+                        onChange={(e) => setEmailSubject(e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground block mb-1">Note (optional)</label>
+                      <Textarea
+                        placeholder="Please review the attached document and let me know if you have any questions..."
+                        value={emailNote}
+                        onChange={(e) => setEmailNote(e.target.value)}
+                        rows={3}
+                        className="resize-none text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        onClick={handleEmailSend}
+                        disabled={emailSending || !emailTo.trim()}
+                        className="gap-2 flex-1"
+                      >
+                        {emailSending ? (
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            className="h-4 w-4 rounded-full border-2 border-primary-foreground border-t-transparent"
+                          />
+                        ) : (
+                          <Send className="h-3.5 w-3.5" />
+                        )}
+                        {emailSending ? "Sending..." : "Send Document"}
+                      </Button>
+                      <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     );
   }

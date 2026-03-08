@@ -3,15 +3,18 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.rate_limit import RateLimit
 from app.schemas.search import CaseDetail, CaseMeta, CaseResult, CaseSearchResponse
 from app.services import search_service
 
 router = APIRouter()
 
+_search_limit = RateLimit(max_requests=60, window_seconds=60, key_prefix="search")
 
-@router.get("/cases", response_model=CaseSearchResponse)
+
+@router.get("/cases", response_model=CaseSearchResponse, dependencies=[Depends(_search_limit)])
 async def search_cases(
     query: str = Query(..., min_length=1, max_length=500),
     page: int = Query(0, ge=0),

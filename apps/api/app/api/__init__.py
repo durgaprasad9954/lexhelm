@@ -1,7 +1,7 @@
 """API router wiring."""
 from fastapi import APIRouter
 
-from app.api.routers import artifacts, auth, beta, doc_chat, draft_chat, documents, health, jobs, matters, notes, orgs, reminders, search
+from app.api.routers import artifacts, auth, beta, doc_chat, draft_chat, documents, email, health, jobs, matters, notes, orgs, reminders, search
 
 api_router = APIRouter()
 api_router.include_router(auth.router, tags=["auth"])
@@ -17,5 +17,6 @@ api_router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 api_router.include_router(doc_chat.router, prefix="/doc-chat", tags=["doc-chat"])
 api_router.include_router(draft_chat.router, prefix="/draft-chat", tags=["draft-chat"])
 api_router.include_router(beta.router, prefix="/beta", tags=["beta"])
+api_router.include_router(email.router, prefix="/email", tags=["email"])
 
 __all__ = ["api_router"]

@@ -1,8 +1,9 @@
 """Document generation endpoints — contract/agreement drafting."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.rate_limit import RateLimit
 from app.schemas.document import (
     DocumentGenerateRequest, DocumentGenerateResponse, DocumentParseRequest,
     DocumentParseResponse, DraftFromDescriptionRequest, DraftFromDescriptionResponse,
@@ -11,6 +12,9 @@ from app.schemas.document import (
 from app.services import document_service
 
 router = APIRouter()
+
+_gen_limit = RateLimit(max_requests=20, window_seconds=3600, key_prefix="doc_gen")
+_parse_limit = RateLimit(max_requests=15, window_seconds=3600, key_prefix="doc_parse")
 
 
 @router.get("/templates", response_model=TemplateListResponse)
@@ -21,7 +25,7 @@ async def list_templates():
     )
 
 
-@router.post("/generate", response_model=DocumentGenerateResponse)
+@router.post("/generate", response_model=DocumentGenerateResponse, dependencies=[Depends(_gen_limit)])
 async def generate_document(req: DocumentGenerateRequest):
     try:
         if req.ai_enhance:
@@ -33,7 +37,7 @@ async def generate_document(req: DocumentGenerateRequest):
     return DocumentGenerateResponse(template_id=req.template_id, content=content, format="markdown")
 
 
-@router.post("/draft", response_model=DraftFromDescriptionResponse)
+@router.post("/draft", response_model=DraftFromDescriptionResponse, dependencies=[Depends(_gen_limit)])
 async def draft_from_description(req: DraftFromDescriptionRequest):
     """Describe what document you need in plain English — AI picks the template and fills it."""
     try:
@@ -59,7 +63,7 @@ async def draft_from_description(req: DraftFromDescriptionRequest):
     )
 
 
-@router.post("/parse", response_model=DocumentParseResponse)
+@router.post("/parse", response_model=DocumentParseResponse, dependencies=[Depends(_parse_limit)])
 async def parse_document(req: DocumentParseRequest):
     result = await document_service.parse_contract(req.text)
     return DocumentParseResponse(

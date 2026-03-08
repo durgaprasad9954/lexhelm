@@ -1,0 +1,57 @@
+"""Email endpoints — send documents to clients."""
+from __future__ import annotations
+
+from typing import Optional
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from pydantic import BaseModel, EmailStr, Field
+
+from app.core.jwt_auth import JWTPayload, get_jwt_payload
+from app.core.rate_limit import RateLimit
+from app.services.email_service import send_document_email
+
+router = APIRouter()
+
+_send_limit = RateLimit(max_requests=20, window_seconds=3600, key_prefix="email_send")
+
+
+class SendDocumentEmailRequest(BaseModel):
+    to: list[EmailStr] = Field(..., min_length=1, max_length=10)
+    cc: Optional[list[EmailStr]] = Field(None, max_length=10)
+    subject: str = Field(..., min_length=1, max_length=200)
+    note: Optional[str] = Field(None, max_length=2000)
+    document_html: str = Field(..., min_length=1)
+    document_title: str = Field("Document", max_length=200)
+
+
+@router.post("/send-document", dependencies=[Depends(_send_limit)])
+async def send_document(
+    req: SendDocumentEmailRequest,
+    background_tasks: BackgroundTasks,
+    jwt: JWTPayload = Depends(get_jwt_payload),
+):
+    """Send a document to client(s) via email, CC'ing the sender."""
+    sender_email = jwt.email
+    sender_name = jwt.name or sender_email
+
+    if not sender_email:
+        raise HTTPException(status_code=400, detail="Your account must have an email to send documents.")
+
+    # Build CC list: always include the sender
+    cc_list = list(req.cc or [])
+    if sender_email not in cc_list and sender_email not in req.to:
+        cc_list.append(sender_email)
+
+    background_tasks.add_task(
+        send_document_email,
+        to=list(req.to),
+        cc=cc_list,
+        subject=req.subject,
+        note=req.note,
+        document_html=req.document_html,
+        document_title=req.document_title,
+        sender_name=sender_name,
+        sender_email=sender_email,
+    )
+
+    return {"message": f"Document will be sent to {', '.join(req.to)}"}

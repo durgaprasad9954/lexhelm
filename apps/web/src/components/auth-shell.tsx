@@ -1,10 +1,10 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth";
-import { SidebarProvider } from "@/lib/sidebar-context";
+import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Scale, Clock, CheckCircle, LogOut, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -194,6 +194,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
+      <SidebarRouteSync pathname={pathname} />
       <div className="flex h-screen overflow-hidden bg-background">
         <AppSidebar />
         <main className="flex-1 overflow-y-auto">
@@ -213,4 +214,25 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       </div>
     </SidebarProvider>
   );
+}
+
+/** Auto-collapse sidebar on doc-chat detail pages, auto-expand when leaving */
+const COLLAPSE_ROUTES = [/^\/doc-chat\/.+/];
+
+function SidebarRouteSync({ pathname }: { pathname: string }) {
+  const { autoCollapse, autoExpand } = useSidebar();
+  const wasCollapsed = useRef(false);
+
+  useEffect(() => {
+    const shouldCollapse = COLLAPSE_ROUTES.some((r) => r.test(pathname));
+    if (shouldCollapse && !wasCollapsed.current) {
+      autoCollapse();
+      wasCollapsed.current = true;
+    } else if (!shouldCollapse && wasCollapsed.current) {
+      autoExpand();
+      wasCollapsed.current = false;
+    }
+  }, [pathname, autoCollapse, autoExpand]);
+
+  return null;
 }

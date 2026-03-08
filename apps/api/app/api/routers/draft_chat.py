@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.jwt_auth import JWTPayload, get_jwt_payload_optional
+from app.core.rate_limit import RateLimit
 from app.db.session import async_session_factory
 from app.schemas.document import (
     DraftChatListResponse,
@@ -21,8 +22,13 @@ from app.services import draft_chat_service
 
 router = APIRouter()
 
+_start_limit = RateLimit(max_requests=20, window_seconds=3600, key_prefix="draft_start")
+_msg_limit = RateLimit(max_requests=40, window_seconds=60, key_prefix="draft_msg")
+_confirm_limit = RateLimit(max_requests=15, window_seconds=3600, key_prefix="draft_confirm")
+_refine_limit = RateLimit(max_requests=30, window_seconds=60, key_prefix="draft_refine")
 
-@router.post("/start", response_model=DraftChatResponse, status_code=201)
+
+@router.post("/start", response_model=DraftChatResponse, status_code=201, dependencies=[Depends(_start_limit)])
 async def start_draft_chat(
     req: DraftChatStartRequest,
     jwt: Optional[JWTPayload] = Depends(get_jwt_payload_optional),
@@ -45,7 +51,7 @@ async def start_draft_chat(
         )
 
 
-@router.post("/{session_id}/message", response_model=DraftChatResponse)
+@router.post("/{session_id}/message", response_model=DraftChatResponse, dependencies=[Depends(_msg_limit)])
 async def send_message(session_id: str, req: DraftChatMessageRequest):
     """Send a message in an existing draft chat session."""
     async with async_session_factory() as session:
@@ -68,7 +74,7 @@ async def send_message(session_id: str, req: DraftChatMessageRequest):
         )
 
 
-@router.post("/{session_id}/confirm", response_model=DraftChatResponse)
+@router.post("/{session_id}/confirm", response_model=DraftChatResponse, dependencies=[Depends(_confirm_limit)])
 async def confirm_draft(session_id: str):
     """Confirm collected fields and generate the document."""
     async with async_session_factory() as session:
@@ -93,7 +99,7 @@ async def confirm_draft(session_id: str):
         )
 
 
-@router.post("/{session_id}/refine", response_model=DraftChatResponse)
+@router.post("/{session_id}/refine", response_model=DraftChatResponse, dependencies=[Depends(_refine_limit)])
 async def refine_document(session_id: str, req: DraftChatRefineRequest):
     """Refine a generated document with natural language instructions."""
     async with async_session_factory() as session:

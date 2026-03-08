@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 from app.core.jwt_auth import JWTPayload, get_jwt_payload_optional
+from app.core.rate_limit import RateLimit
 from app.db.session import async_session_factory
 from app.schemas.doc_chat import (
     ChatRequest, ChatResponse, DocMessageResponse,
@@ -17,8 +18,11 @@ router = APIRouter()
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 
+_upload_limit = RateLimit(max_requests=15, window_seconds=3600, key_prefix="doc_upload")
+_chat_limit = RateLimit(max_requests=40, window_seconds=60, key_prefix="doc_chat")
 
-@router.post("/upload", response_model=DocSessionResponse, status_code=201)
+
+@router.post("/upload", response_model=DocSessionResponse, status_code=201, dependencies=[Depends(_upload_limit)])
 async def upload_document(
     file: UploadFile = File(..., description="PDF, DOCX, or TXT document"),
     jwt: Optional[JWTPayload] = Depends(get_jwt_payload_optional),
@@ -82,7 +86,7 @@ async def get_session(session_id: str):
         )
 
 
-@router.post("/{session_id}/chat", response_model=ChatResponse)
+@router.post("/{session_id}/chat", response_model=ChatResponse, dependencies=[Depends(_chat_limit)])
 async def chat_with_document(session_id: str, req: ChatRequest):
     """Ask a question about the uploaded document."""
     async with async_session_factory() as session:
