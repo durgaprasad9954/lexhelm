@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { ArrowLeft, Send, FileText, User, Bot, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { getDocSession, chatWithDoc, type DocSessionDetail, type DocMessage, type Citation } from "@/lib/api";
@@ -57,7 +57,12 @@ export default function DocChatSessionPage() {
   }, [sessionId]);
 
   useEffect(() => {
+    // Immediate scroll + delayed scroll to account for citation animations
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 1200);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   const sendMessage = useCallback(async () => {
@@ -150,7 +155,7 @@ export default function DocChatSessionPage() {
             initial={{ opacity: 0, x: -16 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="w-80 border-r border-border overflow-y-auto p-5 space-y-5 shrink-0 hidden lg:block bg-accent/20"
+            className="w-64 border-r border-border overflow-y-auto p-4 space-y-4 shrink-0 hidden lg:block bg-accent/20"
           >
             <h3 className="font-semibold text-sm flex items-center gap-2">
               <div className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -165,7 +170,7 @@ export default function DocChatSessionPage() {
             {analysis.summary ? (
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Summary</p>
-                <p className="text-sm leading-relaxed">{String(analysis.summary)}</p>
+                <p className="text-xs leading-relaxed line-clamp-4">{String(analysis.summary)}</p>
               </div>
             ) : null}
             {Array.isArray(analysis.parties) && analysis.parties.length > 0 ? (
@@ -207,7 +212,7 @@ export default function DocChatSessionPage() {
 
         {/* Chat area */}
         <div className="flex-1 flex flex-col">
-          <ScrollArea className="flex-1 p-4">
+          <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-4 max-w-3xl mx-auto py-4">
               {session.status === "processing" && (
                 <motion.div
@@ -269,18 +274,20 @@ export default function DocChatSessionPage() {
                       )}
                     </div>
                     {m.role === "assistant" && m.citations && m.citations.length > 0 && (
-                      <div className="ml-11 mt-2 space-y-1.5 max-w-[75%]">
+                      <div className="mt-2 space-y-1.5 w-full">
                         <motion.p
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: 0.4 }}
-                          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+                          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 ml-11"
                         >
                           Sources ({m.citations.length})
                         </motion.p>
-                        {m.citations.map((c, i) => (
-                          <CitationCard key={i} citation={c} index={i} />
-                        ))}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {m.citations.map((c, i) => (
+                            <CitationCard key={i} citation={c} index={i} />
+                          ))}
+                        </div>
                       </div>
                     )}
                   </motion.div>
@@ -324,7 +331,7 @@ export default function DocChatSessionPage() {
               )}
               <div ref={scrollRef} />
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Input */}
           <div className="border-t border-border p-4 shrink-0 bg-background/80 backdrop-blur-sm">
