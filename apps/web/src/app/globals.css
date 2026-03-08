@@ -127,3 +127,168 @@
     @apply font-sans;
   }
 }
+
+/* ── Legal Editor (Tiptap) ─────────────────────────────────── */
+.legal-editor-wrapper .tiptap {
+  outline: none;
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--foreground);
+}
+
+.legal-editor-wrapper .tiptap p {
+  margin: 0.5em 0;
+  text-align: justify;
+}
+
+.legal-editor-wrapper .tiptap h1 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  margin: 1.5em 0 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0.4em;
+}
+
+.legal-editor-wrapper .tiptap h2 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 1.25em 0 0.5em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.legal-editor-wrapper .tiptap h3 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 1em 0 0.4em;
+}
+
+.legal-editor-wrapper .tiptap h4 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0.75em 0 0.3em;
+  font-style: italic;
+}
+
+.legal-editor-wrapper .tiptap strong {
+  font-weight: 700;
+}
+
+.legal-editor-wrapper .tiptap em {
+  font-style: italic;
+}
+
+.legal-editor-wrapper .tiptap u {
+  text-decoration: underline;
+}
+
+.legal-editor-wrapper .tiptap mark {
+  background-color: #fef08a;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.dark .legal-editor-wrapper .tiptap mark {
+  background-color: #854d0e;
+  color: #fef9c3;
+}
+
+.legal-editor-wrapper .tiptap blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1em;
+  margin: 1em 0;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+
+.legal-editor-wrapper .tiptap ul {
+  list-style: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.legal-editor-wrapper .tiptap ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.legal-editor-wrapper .tiptap li {
+  margin: 0.25em 0;
+}
+
+.legal-editor-wrapper .tiptap hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5em 0;
+}
+
+/* Tables */
+.legal-editor-wrapper .tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 13px;
+}
+
+.legal-editor-wrapper .tiptap th,
+.legal-editor-wrapper .tiptap td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal-editor-wrapper .tiptap th {
+  background: var(--accent);
+  font-weight: 700;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.legal-editor-wrapper .tiptap td {
+  background: transparent;
+}
+
+/* Selected cell */
+.legal-editor-wrapper .tiptap .selectedCell {
+  background: var(--primary) / 0.08;
+}
+
+/* Placeholder */
+.legal-editor-wrapper .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--muted-foreground);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}
+
+/* Print styles for the editor */
+@media print {
+  .legal-editor-wrapper .tiptap {
+    font-size: 12pt;
+    line-height: 1.6;
+    color: #000;
+  }
+  .legal-editor-wrapper .tiptap h1 {
+    font-size: 16pt;
+  }
+  .legal-editor-wrapper .tiptap h2 {
+    font-size: 14pt;
+  }
+  .legal-editor-wrapper .tiptap th {
+    background: #f0f0f0;
+  }
+}

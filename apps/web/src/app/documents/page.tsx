@@ -13,7 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import {
   FileText, Wand2, Upload, Copy, Check, Send, Bot, User,
   CheckCircle2, Circle, RotateCcw, FileDown, Pencil,
-  ArrowLeft, CloudUpload, Sparkles, File,
+  ArrowLeft, CloudUpload, Sparkles, File, Printer,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ import {
   startDraftChat, sendDraftMessage, confirmDraftChat,
   type Template, type DraftChatResponse,
 } from "@/lib/api";
+import { LegalEditor } from "@/components/editor/legal-editor";
 
 interface ChatMsg {
   id: string;
@@ -37,6 +39,14 @@ const TEMPLATE_LABELS: Record<string, string> = {
   service_agreement: "Service Agreement",
   power_of_attorney: "Power of Attorney",
   legal_notice: "Legal Notice",
+};
+
+const TEMPLATE_ICONS: Record<string, string> = {
+  rental_agreement: "🏠",
+  nda: "🤐",
+  service_agreement: "🤝",
+  power_of_attorney: "⚖️",
+  legal_notice: "📜",
 };
 
 const SUGGESTIONS = [
@@ -78,8 +88,8 @@ export default function DocumentsPage() {
             <FileText className="h-5 w-5 text-amber-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Document Drafting</h1>
-            <p className="text-sm text-muted-foreground">Describe what you need and AI will draft it through a conversation.</p>
+            <h1 className="text-2xl font-bold tracking-tight">Document Studio</h1>
+            <p className="text-sm text-muted-foreground">Draft, edit, and export legal documents with AI assistance.</p>
           </div>
         </motion.div>
       </div>
@@ -107,7 +117,7 @@ export default function DocumentsPage() {
           <TabsContent value="templates">
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
               {loading ? (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {[1, 2, 3].map((i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
                 </div>
               ) : (
@@ -129,7 +139,7 @@ export default function DocumentsPage() {
 
 /* ─── Export helpers ─── */
 
-async function exportAsPdf(content: string, title: string) {
+async function exportEditorAsPdf(editorHtml: string, title: string) {
   const printWindow = window.open("", "_blank");
   if (!printWindow) {
     toast.error("Please allow popups to export PDF");
@@ -138,55 +148,144 @@ async function exportAsPdf(content: string, title: string) {
   printWindow.document.write(`<!DOCTYPE html>
 <html><head><title>${title}</title>
 <style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Georgia', 'Times New Roman', serif; max-width: 700px; margin: 40px auto; padding: 0 20px; font-size: 13px; line-height: 1.7; color: #1a1a1a; }
-  h1, h2, h3 { font-family: Arial, sans-serif; }
-  h1 { font-size: 18px; text-align: center; margin-bottom: 30px; }
-  h2 { font-size: 14px; margin-top: 24px; }
-  p { margin: 8px 0; text-align: justify; }
-  @media print { body { margin: 0; } @page { margin: 2cm; } }
+  h1 { font-family: Arial, sans-serif; font-size: 18px; text-align: center; margin: 1.5em 0 0.75em; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #ccc; padding-bottom: 0.4em; }
+  h2 { font-family: Arial, sans-serif; font-size: 15px; margin: 1.25em 0 0.5em; text-transform: uppercase; letter-spacing: 0.03em; }
+  h3 { font-family: Arial, sans-serif; font-size: 13px; font-weight: bold; margin: 1em 0 0.4em; }
+  h4 { font-family: Arial, sans-serif; font-size: 12px; font-weight: 600; font-style: italic; margin: 0.75em 0 0.3em; }
+  p { margin: 0.5em 0; text-align: justify; }
+  strong { font-weight: bold; }
+  em { font-style: italic; }
+  u { text-decoration: underline; }
+  mark { background-color: #fef08a; padding: 0 2px; }
+  blockquote { border-left: 3px solid #ccc; padding-left: 1em; margin: 1em 0; font-style: italic; color: #555; }
+  ul { list-style: disc; padding-left: 1.5em; margin: 0.5em 0; }
+  ol { list-style: decimal; padding-left: 1.5em; margin: 0.5em 0; }
+  li { margin: 0.25em 0; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 1.5em 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 12px; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; font-weight: bold; font-family: Arial, sans-serif; text-transform: uppercase; font-size: 11px; }
+  @media print { body { margin: 0; } @page { margin: 2cm; size: A4; } }
 </style></head><body>
-<pre style="white-space:pre-wrap;font-family:inherit;font-size:inherit;line-height:inherit;">${content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+${editorHtml}
 </body></html>`);
   printWindow.document.close();
   setTimeout(() => printWindow.print(), 300);
 }
 
-async function exportAsDocx(content: string, title: string) {
+async function exportEditorAsDocx(editorHtml: string, title: string) {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = await import("docx");
   const { saveAs } = await import("file-saver");
 
-  const lines = content.split("\n");
+  // Parse HTML into a temporary DOM to extract structure
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(editorHtml, "text/html");
   const children: InstanceType<typeof Paragraph>[] = [];
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed && trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !/^\d/.test(trimmed)) {
+  function processNode(node: Node) {
+    if (node.nodeType === Node.TEXT_NODE) return;
+    const el = node as HTMLElement;
+    const tag = el.tagName?.toLowerCase();
+
+    if (tag === "h1") {
       children.push(new Paragraph({
-        children: [new TextRun({ text: trimmed, bold: true, size: 26, font: "Arial" })],
+        children: [new TextRun({ text: el.textContent || "", bold: true, size: 32, font: "Arial" })],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 400, after: 200 },
+        alignment: AlignmentType.CENTER,
+      }));
+    } else if (tag === "h2") {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: el.textContent || "", bold: true, size: 26, font: "Arial" })],
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 300, after: 100 },
       }));
-    } else if (/^\d+\.\s/.test(trimmed)) {
+    } else if (tag === "h3") {
       children.push(new Paragraph({
-        children: [new TextRun({ text: trimmed, size: 22, font: "Georgia" })],
-        spacing: { before: 200, after: 60 },
+        children: [new TextRun({ text: el.textContent || "", bold: true, size: 24, font: "Arial" })],
+        heading: HeadingLevel.HEADING_3,
+        spacing: { before: 200, after: 80 },
+      }));
+    } else if (tag === "p") {
+      const runs = extractRuns(el);
+      children.push(new Paragraph({
+        children: runs,
+        spacing: { after: 80 },
         alignment: AlignmentType.JUSTIFIED,
       }));
-    } else if (trimmed === "") {
-      children.push(new Paragraph({ children: [], spacing: { before: 100 } }));
+    } else if (tag === "blockquote") {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: el.textContent || "", italics: true, size: 22, font: "Georgia", color: "666666" })],
+        spacing: { before: 200, after: 200 },
+        indent: { left: 720 },
+      }));
+    } else if (tag === "ul" || tag === "ol") {
+      const items = el.querySelectorAll(":scope > li");
+      items.forEach((li, idx) => {
+        const prefix = tag === "ol" ? `${idx + 1}. ` : "• ";
+        children.push(new Paragraph({
+          children: [new TextRun({ text: prefix + (li.textContent || ""), size: 22, font: "Georgia" })],
+          spacing: { after: 40 },
+          indent: { left: 360 },
+        }));
+      });
+    } else if (tag === "hr") {
+      children.push(new Paragraph({ children: [], spacing: { before: 200, after: 200 } }));
     } else {
-      children.push(new Paragraph({
-        children: [new TextRun({ text: trimmed, size: 22, font: "Georgia" })],
-        spacing: { after: 60 },
-        alignment: AlignmentType.JUSTIFIED,
-      }));
+      // Recurse for divs etc
+      el.childNodes.forEach(processNode);
     }
   }
 
-  const doc = new Document({
-    sections: [{ children }],
+  function extractRuns(el: HTMLElement): InstanceType<typeof TextRun>[] {
+    const runs: InstanceType<typeof TextRun>[] = [];
+    el.childNodes.forEach((child) => {
+      if (child.nodeType === Node.TEXT_NODE) {
+        runs.push(new TextRun({ text: child.textContent || "", size: 22, font: "Georgia" }));
+      } else {
+        const childEl = child as HTMLElement;
+        const tag = childEl.tagName?.toLowerCase();
+        const text = childEl.textContent || "";
+        if (tag === "strong" || tag === "b") {
+          runs.push(new TextRun({ text, bold: true, size: 22, font: "Georgia" }));
+        } else if (tag === "em" || tag === "i") {
+          runs.push(new TextRun({ text, italics: true, size: 22, font: "Georgia" }));
+        } else if (tag === "u") {
+          runs.push(new TextRun({ text, underline: {}, size: 22, font: "Georgia" }));
+        } else if (tag === "s" || tag === "strike") {
+          runs.push(new TextRun({ text, strike: true, size: 22, font: "Georgia" }));
+        } else if (tag === "mark") {
+          runs.push(new TextRun({ text, highlight: "yellow", size: 22, font: "Georgia" }));
+        } else {
+          runs.push(new TextRun({ text, size: 22, font: "Georgia" }));
+        }
+      }
+    });
+    if (runs.length === 0) {
+      runs.push(new TextRun({ text: el.textContent || "", size: 22, font: "Georgia" }));
+    }
+    return runs;
+  }
+
+  doc.body.childNodes.forEach(processNode);
+
+  if (children.length === 0) {
+    children.push(new Paragraph({ children: [new TextRun({ text: " " })] }));
+  }
+
+  const docx = new Document({
+    sections: [{
+      properties: {
+        page: {
+          margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+        },
+      },
+      children,
+    }],
   });
-  const blob = await Packer.toBlob(doc);
+  const blob = await Packer.toBlob(docx);
   saveAs(blob, `${title}.docx`);
 }
 
@@ -204,9 +303,10 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
   const [collectedFields, setCollectedFields] = useState<Record<string, string>>({});
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
-  const [editableContent, setEditableContent] = useState<string>("");
+  const [editorHtml, setEditorHtml] = useState<string>("");
   const [editableFields, setEditableFields] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
+  const [showFields, setShowFields] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const templateUsedRef = useRef(false);
 
@@ -216,7 +316,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
 
   useEffect(() => {
     if (generatedContent) {
-      setEditableContent(generatedContent);
+      setEditorHtml(""); // reset first to trigger re-render
       setEditableFields({ ...collectedFields });
     }
   }, [generatedContent]);
@@ -298,23 +398,24 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
     setCollectedFields({});
     setMissingFields([]);
     setGeneratedContent(null);
-    setEditableContent("");
+    setEditorHtml("");
     setEditableFields({});
     templateUsedRef.current = false;
   };
 
   const copyContent = () => {
-    navigator.clipboard.writeText(editableContent);
+    // Copy plain text from editorHtml by stripping tags
+    const tmp = document.createElement("div");
+    tmp.innerHTML = editorHtml || generatedContent || "";
+    const text = tmp.textContent || tmp.innerText || "";
+    navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleFieldChange = (key: string, value: string) => {
-    const oldValue = editableFields[key];
-    setEditableFields((f) => ({ ...f, [key]: value }));
-    if (oldValue && value && editableContent.includes(oldValue)) {
-      setEditableContent((c) => c.replaceAll(oldValue, value));
-    }
+  const handlePrint = () => {
+    const html = editorHtml || generatedContent || "";
+    exportEditorAsPdf(html, docTitle);
   };
 
   const docTitle = templateId
@@ -327,99 +428,108 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="space-y-4"
+        className="space-y-3"
       >
-        {/* Toolbar */}
-        <div className="flex items-center justify-between rounded-xl bg-accent/30 p-3">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={resetChat} className="gap-1.5">
-              <ArrowLeft className="h-4 w-4" /> New Draft
+        {/* Top Bar */}
+        <div className="flex items-center justify-between rounded-xl border border-border bg-card p-2.5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={resetChat} className="gap-1.5 text-xs">
+              <ArrowLeft className="h-3.5 w-3.5" /> New Draft
             </Button>
             <Separator orientation="vertical" className="h-5" />
-            <span className="text-sm font-semibold">
-              {templateId ? TEMPLATE_LABELS[templateId] || templateId : "Document"}
-            </span>
-            <Badge variant="default" className="text-xs gap-1">
-              <CheckCircle2 className="h-3 w-3" /> Generated
-            </Badge>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">
+                {templateId ? TEMPLATE_LABELS[templateId] || templateId : "Document"}
+              </span>
+              <Badge variant="default" className="text-[10px] gap-1 px-2 py-0.5">
+                <CheckCircle2 className="h-3 w-3" /> Ready
+              </Badge>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={copyContent} className="gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowFields(!showFields)}
+              className="gap-1.5 text-xs hidden lg:flex"
+              title={showFields ? "Hide fields panel" : "Show fields panel"}
+            >
+              {showFields ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
+              Fields
+            </Button>
+            <Separator orientation="vertical" className="h-5" />
+            <Button variant="ghost" size="sm" onClick={copyContent} className="gap-1.5 text-xs" title="Copy to clipboard">
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied" : "Copy"}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => exportAsPdf(editableContent, docTitle)} className="gap-1.5">
-              <FileDown className="h-3.5 w-3.5" /> PDF
+            <Button variant="ghost" size="sm" onClick={handlePrint} className="gap-1.5 text-xs" title="Print / Save as PDF">
+              <Printer className="h-3.5 w-3.5" /> PDF
             </Button>
-            <Button variant="outline" size="sm" onClick={() => exportAsDocx(editableContent, docTitle)} className="gap-1.5">
-              <FileDown className="h-3.5 w-3.5" /> DOCX
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => exportEditorAsDocx(editorHtml || generatedContent || "", docTitle)}
+              className="gap-1.5 text-xs"
+              title="Download as Word document"
+            >
+              <FileDown className="h-3.5 w-3.5" /> Export DOCX
             </Button>
           </div>
         </div>
 
-        {/* Split: Fields (left) | Editor (right) */}
-        <div className="flex gap-4" style={{ height: "calc(100vh - 290px)" }}>
-          {/* Left: Parsed Fields */}
-          <div className="w-80 shrink-0 border border-border rounded-xl overflow-hidden flex flex-col">
-            <div className="border-b border-border px-4 py-3 bg-accent/20">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Pencil className="h-3.5 w-3.5 text-primary" /> Document Fields
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Edit fields to update the document
-              </p>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-3">
-                {Object.entries(editableFields).map(([key, val]) => (
-                  <div key={key}>
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1.5">
-                      {key.replace(/_/g, " ")}
-                    </label>
-                    {val.length > 60 ? (
-                      <Textarea
-                        value={val}
-                        onChange={(e) => handleFieldChange(key, e.target.value)}
-                        rows={2}
-                        className="text-sm resize-none rounded-lg"
-                      />
-                    ) : (
-                      <Input
-                        value={val}
-                        onChange={(e) => handleFieldChange(key, e.target.value)}
-                        className="text-sm rounded-lg"
-                      />
-                    )}
-                  </div>
-                ))}
-                {Object.keys(editableFields).length === 0 && (
-                  <p className="text-xs text-muted-foreground py-4 text-center">
-                    No fields extracted
-                  </p>
-                )}
+        {/* Editor Area */}
+        <div className="flex gap-3" style={{ height: "calc(100vh - 300px)" }}>
+          {/* Left: Fields Panel */}
+          {showFields && Object.keys(editableFields).length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, x: -16, width: 0 }}
+              animate={{ opacity: 1, x: 0, width: 280 }}
+              exit={{ opacity: 0, x: -16, width: 0 }}
+              className="shrink-0 border border-border rounded-xl overflow-hidden flex flex-col bg-card shadow-sm hidden lg:flex"
+            >
+              <div className="border-b border-border px-4 py-3 bg-accent/20">
+                <h3 className="text-xs font-semibold flex items-center gap-2 uppercase tracking-wider text-muted-foreground">
+                  <Pencil className="h-3 w-3" /> Document Fields
+                </h3>
               </div>
-            </ScrollArea>
-          </div>
+              <ScrollArea className="flex-1">
+                <div className="p-3 space-y-2.5">
+                  {Object.entries(editableFields).map(([key, val]) => (
+                    <div key={key}>
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
+                        {key.replace(/_/g, " ")}
+                      </label>
+                      {val.length > 60 ? (
+                        <Textarea
+                          value={val}
+                          onChange={(e) => {
+                            setEditableFields((f) => ({ ...f, [key]: e.target.value }));
+                          }}
+                          rows={2}
+                          className="text-xs resize-none rounded-lg"
+                        />
+                      ) : (
+                        <Input
+                          value={val}
+                          onChange={(e) => {
+                            setEditableFields((f) => ({ ...f, [key]: e.target.value }));
+                          }}
+                          className="text-xs rounded-lg h-8"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </motion.div>
+          )}
 
-          {/* Right: Document Editor */}
-          <div className="flex-1 border border-border rounded-xl overflow-hidden flex flex-col">
-            <div className="border-b border-border px-4 py-3 bg-accent/20 flex items-center justify-between">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <FileText className="h-3.5 w-3.5 text-primary" /> Document Editor
-              </h3>
-              <span className="text-xs text-muted-foreground">
-                {editableContent.split("\n").length} lines
-              </span>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <textarea
-                value={editableContent}
-                onChange={(e) => setEditableContent(e.target.value)}
-                className="w-full h-full resize-none border-0 bg-card p-6 text-sm leading-relaxed font-[Georgia,serif] focus:outline-none"
-                style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                spellCheck
-              />
-            </div>
+          {/* Right: Rich Text Editor */}
+          <div className="flex-1 border border-border rounded-xl overflow-hidden flex flex-col bg-card shadow-sm">
+            <LegalEditor
+              content={generatedContent}
+              onChange={(html) => setEditorHtml(html)}
+            />
           </div>
         </div>
       </motion.div>
@@ -441,7 +551,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
               <CardTitle className="text-base">Describe the document you need</CardTitle>
             </div>
             <CardDescription>
-              Tell me what you need in plain English. I will ask for any missing details through our conversation.
+              Tell me what you need in plain English. I&apos;ll ask for any missing details through our conversation, then open a full editor for you to review and refine.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-5">
@@ -577,7 +687,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
         {phase === "confirm" && (
           <div className="border-t border-border p-3 flex justify-center shrink-0 bg-primary/5">
             <Button onClick={handleConfirm} disabled={sending} className="w-full max-w-xs gap-2 rounded-xl">
-              <CheckCircle2 className="h-4 w-4" />
+              <Sparkles className="h-4 w-4" />
               Generate Document
             </Button>
           </div>
@@ -591,7 +701,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed }: {
               className="flex gap-2 max-w-2xl mx-auto"
             >
               <Textarea
-                placeholder={phase === "confirm" ? "Want to change anything? Or say 'generate' to proceed..." : "Type your response..."}
+                placeholder={phase === "confirm" ? "Want to change anything? Or click Generate Document..." : "Type your response..."}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -688,7 +798,7 @@ function TemplatesTab({ templates, onChatWithTemplate }: {
   onChatWithTemplate: (templateId: string) => void;
 }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {templates.map((t, i) => (
         <motion.div
           key={t.template_id}
@@ -696,22 +806,27 @@ function TemplatesTab({ templates, onChatWithTemplate }: {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.05, duration: 0.3 }}
         >
-          <Card className="group transition-all duration-200 hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5">
+          <Card className="group transition-all duration-200 hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5 h-full flex flex-col">
             <CardHeader>
-              <CardTitle className="text-base group-hover:text-primary transition-colors">{t.name}</CardTitle>
-              <CardDescription>{t.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex flex-wrap gap-1.5">
-                {t.required_fields.map((p) => (
-                  <Badge key={p} variant="default" className="text-xs">{p.replace(/_/g, " ")}</Badge>
-                ))}
-                {t.optional_fields.map((p) => (
-                  <Badge key={p} variant="outline" className="text-xs">{p.replace(/_/g, " ")}</Badge>
-                ))}
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{TEMPLATE_ICONS[t.template_id] || "📄"}</span>
+                <div>
+                  <CardTitle className="text-base group-hover:text-primary transition-colors">{t.name}</CardTitle>
+                  <CardDescription className="text-xs mt-0.5">{t.description}</CardDescription>
+                </div>
               </div>
-              <Button size="sm" onClick={() => onChatWithTemplate(t.template_id)} className="gap-1.5 rounded-lg">
-                <Wand2 className="h-3.5 w-3.5" /> Draft with AI Chat
+            </CardHeader>
+            <CardContent className="space-y-3 flex-1 flex flex-col justify-end">
+              <div className="flex flex-wrap gap-1.5">
+                {t.required_fields.slice(0, 4).map((p) => (
+                  <Badge key={p} variant="default" className="text-[10px]">{p.replace(/_/g, " ")}</Badge>
+                ))}
+                {t.required_fields.length > 4 && (
+                  <Badge variant="secondary" className="text-[10px]">+{t.required_fields.length - 4} more</Badge>
+                )}
+              </div>
+              <Button size="sm" onClick={() => onChatWithTemplate(t.template_id)} className="gap-1.5 rounded-lg w-full mt-2">
+                <Wand2 className="h-3.5 w-3.5" /> Draft with AI
               </Button>
             </CardContent>
           </Card>
