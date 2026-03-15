@@ -29,3 +29,5 @@ node_modules/
 *.swp
 *.swo
 .DS_Store
+
+.cursor/skills/*

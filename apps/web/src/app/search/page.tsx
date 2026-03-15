@@ -14,12 +14,12 @@ import { searchCases, type SearchResult, type SearchResponse } from "@/lib/api";
 import { Linkify } from "@/lib/linkify";
 
 const EXAMPLE_QUERIES = [
-  { label: "Tenant eviction rights", query: "tenant eviction rights India", icon: Shield, color: "text-blue-500", bg: "bg-blue-500/10" },
-  { label: "Section 498A dowry", query: "section 498A IPC dowry harassment", icon: Gavel, color: "text-rose-500", bg: "bg-rose-500/10" },
-  { label: "Arbitration clause validity", query: "arbitration clause unilateral validity", icon: BookOpen, color: "text-amber-500", bg: "bg-amber-500/10" },
-  { label: "Right to privacy", query: "right to privacy fundamental right", icon: Users, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { label: "Employee termination rules", query: "employee termination notice period India", icon: Shield, color: "text-blue-500", bg: "bg-blue-500/10" },
+  { label: "Tenant eviction rights", query: "tenant eviction rights India", icon: Gavel, color: "text-rose-500", bg: "bg-rose-500/10" },
+  { label: "Startup investor agreements", query: "startup shareholder agreement rights India", icon: BookOpen, color: "text-amber-500", bg: "bg-amber-500/10" },
+  { label: "Property dispute resolution", query: "property dispute resolution civil court India", icon: Users, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { label: "Cheque bounce 138 NI Act", query: "dishonour cheque section 138 negotiable instruments", icon: FileSearch, color: "text-violet-500", bg: "bg-violet-500/10" },
-  { label: "Supreme Court bail guidelines", query: "supreme court bail conditions guidelines", icon: Landmark, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+  { label: "Right to privacy", query: "right to privacy fundamental right", icon: Landmark, color: "text-cyan-500", bg: "bg-cyan-500/10" },
 ];
 
 const VALUE_PROPS = [
@@ -68,8 +68,8 @@ export default function SearchPage() {
               <Search className="h-5 w-5 text-violet-500" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Case Search</h1>
-              <p className="text-sm text-muted-foreground">Search Indian legal cases, statutes, and judgments powered by IndianKanoon.</p>
+              <h1 className="text-2xl font-bold tracking-tight">Legal Search</h1>
+              <p className="text-sm text-muted-foreground">Search 100M+ Indian legal cases, statutes, and judgments powered by IndianKanoon.</p>
             </div>
           </div>
 
@@ -152,7 +152,7 @@ export default function SearchPage() {
               <div className="h-14 w-14 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-4">
                 <Scale className="h-7 w-7 text-violet-500/70" />
               </div>
-              <h2 className="text-lg font-semibold mb-1">What are you researching?</h2>
+              <h2 className="text-lg font-semibold mb-1">What legal topic do you need to know about?</h2>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 Search across Indian case law, statutes, and judgments. Try one of these common searches:
               </p>
@@ -188,7 +188,7 @@ export default function SearchPage() {
 
             <div className="text-center">
               <p className="text-xs text-muted-foreground">
-                Tip: Use specific legal terms, section numbers, or case names for better results.
+                Tip: You can search in plain English or use specific legal terms and section numbers.
               </p>
             </div>
           </motion.div>

@@ -23,11 +23,11 @@ import { useAuth } from "@/lib/auth";
 import { useSidebar } from "@/lib/sidebar-context";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: Home, color: "text-blue-500" },
-  { href: "/search", label: "Case Search", icon: Search, color: "text-violet-500" },
-  { href: "/doc-chat", label: "Doc Chat", icon: MessageSquare, color: "text-emerald-500" },
-  { href: "/documents", label: "Drafting", icon: FileText, color: "text-amber-500" },
-  { href: "/jobs", label: "Jobs", icon: Briefcase, color: "text-rose-500" },
+  { href: "/dashboard", label: "Home", icon: Home, color: "text-blue-500" },
+  { href: "/search", label: "Legal Search", icon: Search, color: "text-violet-500" },
+  { href: "/doc-chat", label: "Review Document", icon: MessageSquare, color: "text-emerald-500" },
+  { href: "/documents", label: "Create Document", icon: FileText, color: "text-amber-500" },
+  { href: "/jobs", label: "Deep Research", icon: Briefcase, color: "text-rose-500" },
 ] as const;
 
 const ADMIN_EMAILS = ["vikas@navyaai.com", "anand@navyaai.com", "marketing@navyaai.com"];
@@ -88,7 +88,7 @@ export function AppSidebar() {
         {!collapsed && (
           <div className="flex flex-col">
             <span className="text-base font-bold tracking-tight">LexHelm</span>
-            <span className="text-[11px] font-medium text-muted-foreground">Legal Intelligence</span>
+            <span className="text-[11px] font-medium text-muted-foreground">AI Legal Assistant</span>
           </div>
         )}
       </div>
@@ -193,7 +193,7 @@ export function AppSidebar() {
               <span className="text-xs font-semibold text-primary">AI Powered</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Search cases, draft documents, and analyze contracts with AI.
+              Create documents, understand contracts, and find legal answers — all powered by AI.
             </p>
           </div>
         </div>

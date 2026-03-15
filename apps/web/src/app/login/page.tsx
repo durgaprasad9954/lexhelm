@@ -96,7 +96,7 @@ export default function LoginPage() {
               </motion.div>
               <div>
                 <h2 className="text-2xl font-bold text-foreground">LexHelm</h2>
-                <p className="text-xs text-muted-foreground font-medium">Legal Intelligence Platform</p>
+                <p className="text-xs text-muted-foreground font-medium">Your AI Legal Assistant</p>
               </div>
             </div>
 
@@ -104,15 +104,15 @@ export default function LoginPage() {
               {...fadeUp(0.3)}
               className="text-lg font-semibold text-foreground mb-6"
             >
-              AI-powered tools for modern legal professionals
+              AI-powered tools for anyone dealing with legal documents
             </motion.h3>
 
             <div className="space-y-3">
               {[
-                { icon: BookOpen, label: "Case Research", desc: "Search millions of Indian legal cases instantly" },
-                { icon: Zap, label: "Smart Drafting", desc: "Generate legal documents with AI assistance" },
-                { icon: Shield, label: "Document Analysis", desc: "Extract key terms, risks, and obligations" },
-                { icon: Search, label: "Deep Research", desc: "Async AI research across case law databases" },
+                { icon: BookOpen, label: "Legal Search", desc: "Find relevant laws and court decisions instantly" },
+                { icon: Zap, label: "Document Creation", desc: "Create ready-to-use legal documents with AI" },
+                { icon: Shield, label: "Contract Review", desc: "Upload any contract and understand what it means" },
+                { icon: Search, label: "Legal Answers", desc: "Get thorough answers to your legal questions" },
               ].map((feature, i) => (
                 <motion.div
                   key={feature.label}
@@ -141,8 +141,8 @@ export default function LoginPage() {
             >
               {[
                 { color: "bg-emerald-500", label: "100% Secure" },
-                { color: "bg-blue-500", label: "24/7 AI Access" },
-                { color: "bg-violet-500", label: "IPC Coverage" },
+                { color: "bg-blue-500", label: "Available 24/7" },
+                { color: "bg-violet-500", label: "All Indian Laws" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-1.5">
                   <motion.div
@@ -176,10 +176,10 @@ export default function LoginPage() {
                 <Scale className="h-8 w-8 text-primary" />
               </motion.div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                Welcome back
+                Welcome to LexHelm
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Sign in to access your legal workspace
+                Sign in to create documents, review contracts, and more
               </p>
             </div>
 
@@ -244,9 +244,9 @@ export default function LoginPage() {
               className="grid grid-cols-3 gap-2"
             >
               {[
-                { icon: FileText, label: "NDAs" },
-                { icon: Shield, label: "Agreements" },
-                { icon: Sparkles, label: "AI Drafts" },
+                { icon: FileText, label: "Documents" },
+                { icon: Shield, label: "Contracts" },
+                { icon: Sparkles, label: "Research" },
               ].map((item) => (
                 <motion.div
                   key={item.label}

@@ -56,6 +56,15 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+public_exempt = (
+    "/healthz", "/healthz/",
+    f"{settings.api_prefix}/healthz", f"{settings.api_prefix}/healthz/",
+    f"{settings.api_prefix}/auth/google", f"{settings.api_prefix}/auth/google/",
+)
+app.add_middleware(TokenAuthMiddleware, exempt_paths=public_exempt)
+
+# CORSMiddleware must be added AFTER TokenAuthMiddleware so it becomes
+# the outermost layer and injects CORS headers on ALL responses (including 401s).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -63,13 +72,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-public_exempt = (
-    "/healthz", "/healthz/",
-    f"{settings.api_prefix}/healthz", f"{settings.api_prefix}/healthz/",
-    f"{settings.api_prefix}/auth/google", f"{settings.api_prefix}/auth/google/",
-)
-app.add_middleware(TokenAuthMiddleware, exempt_paths=public_exempt)
 
 
 @app.on_event("startup")

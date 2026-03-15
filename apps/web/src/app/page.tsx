@@ -38,28 +38,28 @@ const FEATURES = [
   {
     icon: Search,
     title: "AI Case Research",
-    desc: "Search millions of Indian legal cases, statutes, and judgments from IndianKanoon with AI-powered analysis.",
+    desc: "Find court decisions, laws, and legal precedents relevant to your situation.",
     color: "text-violet-500",
     bg: "bg-violet-500/10",
   },
   {
     icon: FileText,
-    title: "Smart Document Drafting",
-    desc: "Generate rental agreements, NDAs, legal notices, power of attorney and more — with AI or from templates.",
+    title: "Smart Drafting",
+    desc: "Answer a few simple questions and get a ready-to-use legal document. No legal background needed.",
     color: "text-amber-500",
     bg: "bg-amber-500/10",
   },
   {
     icon: MessageSquare,
-    title: "Document Chat & Analysis",
-    desc: "Upload contracts and legal documents. Chat with AI to extract clauses, risks, obligations, and key terms.",
+    title: "Doc Chat",
+    desc: "Upload any contract and ask questions in plain English. Find out what you're agreeing to.",
     color: "text-emerald-500",
     bg: "bg-emerald-500/10",
   },
   {
     icon: Briefcase,
-    title: "Deep Research Jobs",
-    desc: "Submit complex legal research queries that run asynchronously. Get comprehensive analysis delivered to your dashboard.",
+    title: "Deep Research",
+    desc: "Ask a detailed legal question and get a thorough research report with cases, laws, and recommendations.",
     color: "text-rose-500",
     bg: "bg-rose-500/10",
   },
@@ -67,17 +67,17 @@ const FEATURES = [
 
 const DOCUMENT_TYPES = [
   { label: "Rental Agreement", href: "/create/rental-agreement", icon: "🏠" },
-  { label: "NDA", href: "/create/nda", icon: "🔒" },
+  { label: "NDA / Confidentiality Agreement", href: "/create/nda", icon: "🔒" },
   { label: "Legal Notice", href: "/create/legal-notice", icon: "⚖️" },
-  { label: "Service Agreement", href: "/create/service-agreement", icon: "🤝" },
+  { label: "Service / Freelancer Agreement", href: "/create/service-agreement", icon: "🤝" },
   { label: "Power of Attorney", href: "/create/power-of-attorney", icon: "📝" },
 ];
 
 const STATS = [
   { value: "10,000+", label: "Documents Created" },
-  { value: "99.9%", label: "Legal Accuracy" },
-  { value: "< 30s", label: "Generation Time" },
-  { value: "50+", label: "Document Templates" },
+  { value: "50+", label: "Ready-Made Templates" },
+  { value: "100M+", label: "Legal Cases Searchable" },
+  { value: "All States", label: "Across India" },
 ];
 
 const STEPS = [
@@ -196,7 +196,7 @@ export default function LandingPage() {
             <motion.div custom={0} variants={fadeUp} initial="hidden" animate="visible">
               <Badge variant="secondary" className="gap-1.5 px-3 py-1.5 text-xs font-semibold mb-6">
                 <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
-                India&apos;s AI-Powered Legal Platform
+                India&apos;s #1 AI Legal Assistant
               </Badge>
             </motion.div>
 
@@ -207,9 +207,9 @@ export default function LandingPage() {
               animate="visible"
               className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08]"
             >
-              Create Legal Documents{" "}
+              Legal Documents, Contracts & Answers{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-violet-500 to-primary">
-                with AI
+                — Simplified
               </span>
             </motion.h1>
 
@@ -220,8 +220,8 @@ export default function LandingPage() {
               animate="visible"
               className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
             >
-              Draft rental agreements, NDAs, legal notices, and more in seconds.
-              Search Indian case law, analyze contracts, and get AI-powered legal research — all in one platform.
+              Create rental agreements, NDAs, legal notices, and more in seconds.
+              Search Indian case law, review contracts, and get AI-powered legal answers — no lawyer jargon required.
             </motion.p>
 
             <motion.div custom={3} variants={fadeUp} initial="hidden" animate="visible" className="mt-8">
@@ -236,10 +236,10 @@ export default function LandingPage() {
               className="mt-6 flex flex-wrap justify-center gap-5 text-xs text-muted-foreground"
             >
               {[
-                { icon: Zap, label: "Instant Generation" },
-                { icon: Shield, label: "Legally Accurate" },
-                { icon: Globe, label: "All Indian States" },
-                { icon: Clock, label: "Ready in 30 Seconds" },
+                { icon: Zap, label: "No Legal Knowledge Needed" },
+                { icon: Globe, label: "Valid Across All Indian States" },
+                { icon: Clock, label: "Ready in Under a Minute" },
+                { icon: Shield, label: "AI-Checked for Accuracy" },
               ].map((item) => (
                 <span key={item.label} className="flex items-center gap-1.5">
                   <item.icon className="h-3.5 w-3.5 text-primary" />
@@ -287,7 +287,7 @@ export default function LandingPage() {
             className="text-center mb-8"
           >
             <p className="text-sm font-semibold text-primary mb-2">Popular Documents</p>
-            <h2 className="text-xl font-bold">Create any legal document in minutes</h2>
+            <h2 className="text-xl font-bold">What do you need to create?</h2>
           </motion.div>
           <motion.div
             variants={stagger}
@@ -330,7 +330,7 @@ export default function LandingPage() {
               Platform Features
             </Badge>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Everything you need for legal work
+              Everything you need, whether you&apos;re a lawyer or not
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto text-lg">
               From research to drafting to analysis — LexHelm handles it all with the power of AI.
@@ -430,8 +430,8 @@ export default function LandingPage() {
             transition={{ duration: 0.5 }}
             className="text-center mb-14"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Legal Professionals Choose LexHelm</h2>
-            <p className="text-muted-foreground max-w-lg mx-auto text-lg">Built specifically for Indian law with accuracy and speed in mind</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Trusted by Lawyers, Built for Everyone</h2>
+            <p className="text-muted-foreground max-w-lg mx-auto text-lg">Whether you&apos;re a legal professional, business owner, or first-time tenant — LexHelm has you covered</p>
           </motion.div>
 
           <motion.div
@@ -445,8 +445,8 @@ export default function LandingPage() {
               { icon: Globe, title: "All Indian States", desc: "Compliant with state-specific regulations across India — stamp duty, registration, and local laws." },
               { icon: Shield, title: "Legally Accurate", desc: "Every document follows the Indian Contract Act, 1872, Registration Act, and applicable statutes." },
               { icon: Zap, title: "10x Faster", desc: "What takes hours with a lawyer takes seconds with LexHelm. No more template hunting." },
-              { icon: BookOpen, title: "Case Law Search", desc: "Access IndianKanoon's database of millions of cases, statutes, and legal documents." },
-              { icon: Users, title: "Team Collaboration", desc: "Share documents with your team, manage matters, and keep everything organized." },
+              { icon: BookOpen, title: "Plain English Explanations", desc: "AI breaks down complex legal language so you understand exactly what you're dealing with." },
+              { icon: Users, title: "For Individuals & Teams", desc: "Whether you're a solo freelancer or a 50-person team, LexHelm scales with you." },
               { icon: Star, title: "Free During Beta", desc: "Full access to all features during our beta period. No credit card required." },
             ].map((item) => (
               <motion.div key={item.title} variants={staggerItem}>
@@ -463,27 +463,46 @@ export default function LandingPage() {
 
       {/* ─── Testimonial / Social Proof ─── */}
       <section className="py-16 bg-accent/20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-center"
-          >
-            <div className="flex justify-center gap-1 mb-4">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="h-5 w-5 text-amber-500 fill-amber-500" />
-              ))}
-            </div>
-            <blockquote className="text-lg md:text-xl font-medium text-foreground max-w-2xl mx-auto leading-relaxed">
-              &ldquo;LexHelm saved our firm hours every week. The AI drafting is incredibly accurate for Indian law,
-              and the case search is faster than anything we&apos;ve used before.&rdquo;
-            </blockquote>
-            <p className="mt-4 text-sm text-muted-foreground">
-              — Legal Professional, Bangalore
-            </p>
-          </motion.div>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                quote: "I created a rental agreement for my flat in 10 minutes. No lawyer fees, no confusing forms.",
+                name: "Priya M.",
+                role: "Small Business Owner, Mumbai",
+              },
+              {
+                quote: "We use LexHelm for all our NDAs and service contracts. It saves my startup thousands every month.",
+                name: "Arjun K.",
+                role: "Startup Founder, Bangalore",
+              },
+              {
+                quote: "The case research is faster than anything I\u2019ve used. I draft memos in half the time now.",
+                name: "Adv. Sonal R.",
+                role: "Litigation Lawyer, Delhi",
+              },
+            ].map((t, i) => (
+              <motion.div
+                key={t.name}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+                className="text-center"
+              >
+                <div className="flex justify-center gap-1 mb-3">
+                  {[...Array(5)].map((_, j) => (
+                    <Star key={j} className="h-4 w-4 text-amber-500 fill-amber-500" />
+                  ))}
+                </div>
+                <blockquote className="text-sm font-medium text-foreground leading-relaxed mb-3">
+                  &ldquo;{t.quote}&rdquo;
+                </blockquote>
+                <p className="text-xs font-semibold text-foreground">{t.name}</p>
+                <p className="text-xs text-muted-foreground">{t.role}</p>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -498,7 +517,7 @@ export default function LandingPage() {
             className="flex items-center justify-between mb-8"
           >
             <div>
-              <h2 className="text-2xl font-bold">Legal Guides & Resources</h2>
+              <h2 className="text-2xl font-bold">Guides & How-Tos</h2>
               <p className="text-sm text-muted-foreground mt-1">Free guides to help you navigate Indian law</p>
             </div>
             <Link href="/blog" className="text-sm text-primary font-medium hover:underline flex items-center gap-1">
@@ -565,7 +584,7 @@ export default function LandingPage() {
               <Scale className="h-8 w-8 text-primary" />
             </motion.div>
             <h2 className="text-3xl md:text-5xl font-bold mb-5 leading-tight">
-              Start creating legal documents today
+              Get your first document in under 5 minutes
             </h2>
             <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
               Join thousands of legal professionals and businesses using LexHelm to draft documents faster. Free during beta.
@@ -596,7 +615,7 @@ export default function LandingPage() {
                 <span className="font-bold">LexHelm</span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                AI-powered legal intelligence platform for India. Create documents, search case law, and analyze contracts.
+                AI-powered legal assistant for India. Create documents, search case law, and review contracts.
               </p>
             </div>
             <div>

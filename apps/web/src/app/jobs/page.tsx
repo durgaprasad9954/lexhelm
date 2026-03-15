@@ -22,30 +22,30 @@ import remarkGfm from "remark-gfm";
 const JOB_TYPES = [
   {
     id: "deep_search",
-    label: "Deep Search",
+    label: "Case & Law Search",
     icon: Search,
     color: "text-violet-500",
     bg: "bg-violet-500/10",
     desc: "Searches multiple pages of Indian case law and compiles a ranked summary of the most relevant judgments, statutes, and legal provisions.",
     output: "Ranked list of cases with citations, court names, dates, and relevance snippets.",
     examples: [
-      "Tenant eviction rights under rent control",
-      "Section 138 NI Act cheque bounce defences",
-      "Arbitration clause unilateral appointment",
+      "What are my rights if my landlord wants to evict me?",
+      "Can my company fire me without notice?",
+      "Startup investor agreement rights in India",
     ],
   },
   {
     id: "research",
-    label: "Research Memo",
+    label: "Detailed Legal Analysis",
     icon: BookOpen,
     color: "text-rose-500",
     bg: "bg-rose-500/10",
     desc: "Performs comprehensive legal research and produces a structured memo with analysis, applicable statutes, leading cases, and practical recommendations.",
     output: "Full research memo with headings, case citations, statutory references, and conclusion.",
     examples: [
-      "IP infringement remedies for software patents in India",
-      "FEMA compliance for outward remittance by NRIs",
-      "Employee termination notice period requirements",
+      "What are my options if a client refuses to pay my invoice?",
+      "Rules for sending money abroad as an NRI",
+      "How to legally terminate an employee in India",
     ],
   },
 ];
@@ -96,8 +96,8 @@ export default function JobsPage() {
               <Briefcase className="h-5 w-5 text-rose-500" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Research Jobs</h1>
-              <p className="text-sm text-muted-foreground">Submit deep legal research queries that run in the background and produce detailed results.</p>
+              <h1 className="text-2xl font-bold tracking-tight">Deep Research</h1>
+              <p className="text-sm text-muted-foreground">Ask a complex legal question and get a thorough research report with cases, laws, and recommendations.</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={refresh} className="gap-1.5">
@@ -110,10 +110,10 @@ export default function JobsPage() {
         <Tabs defaultValue="submit" className="space-y-6">
           <TabsList className="bg-muted/50">
             <TabsTrigger value="submit" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <Play className="h-3.5 w-3.5" /> New Job
+              <Play className="h-3.5 w-3.5" /> New Research
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <Briefcase className="h-3.5 w-3.5" /> History ({jobs.length})
+              <Briefcase className="h-3.5 w-3.5" /> Past Research ({jobs.length})
             </TabsTrigger>
           </TabsList>
 
@@ -134,8 +134,8 @@ export default function JobsPage() {
                   <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center mb-3">
                     <Briefcase className="h-7 w-7 text-muted-foreground/60" />
                   </div>
-                  <p className="text-sm font-medium text-muted-foreground">No jobs yet</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">Submit a research task to get started.</p>
+                  <p className="text-sm font-medium text-muted-foreground">No research yet</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Submit a research question to get started.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -247,7 +247,7 @@ function SubmitTab({ onSubmitted }: { onSubmitted: (j: Job) => void }) {
       <Card className="border-border/50">
         <CardContent className="p-5 space-y-4">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-1.5">Research Query</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-1.5">Your Question</label>
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}

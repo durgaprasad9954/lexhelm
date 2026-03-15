@@ -159,7 +159,7 @@ export default function DocChatSessionPage() {
           >
             <h3 className="font-semibold text-sm flex items-center gap-2">
               <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-              Document Analysis
+              Quick Overview
             </h3>
             {analysis.document_type ? (
               <div>
@@ -235,7 +235,7 @@ export default function DocChatSessionPage() {
                     <Bot className="h-7 w-7 text-primary/30" />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Ask a question about the document to get started.
+                    Ask anything about this document. Try &ldquo;Give me a summary&rdquo; or &ldquo;Are there any red flags?&rdquo;
                   </p>
                 </div>
               )}

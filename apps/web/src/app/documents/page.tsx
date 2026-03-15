@@ -54,9 +54,9 @@ const TEMPLATE_ICONS: Record<string, string> = {
 
 const SUGGESTIONS = [
   "Rental agreement for a flat in Bangalore",
-  "NDA between my company and a vendor",
-  "Service agreement for a consulting engagement",
-  "Legal notice for unpaid rent",
+  "NDA for a new vendor",
+  "Freelancer service contract",
+  "Employment offer letter",
 ];
 
 export default function DocumentsPage() {
@@ -93,8 +93,8 @@ export default function DocumentsPage() {
               <FileText className="h-5 w-5 text-amber-500" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Document Studio</h1>
-              <p className="text-sm text-muted-foreground">Draft, edit, and export legal documents with AI assistance.</p>
+              <h1 className="text-2xl font-bold tracking-tight">Create a Document</h1>
+              <p className="text-sm text-muted-foreground">Describe what you need and the AI will create a ready-to-use legal document.</p>
             </div>
           </motion.div>
         </div>
@@ -105,13 +105,13 @@ export default function DocumentsPage() {
           {!editorMode && (
             <TabsList className="bg-muted/50">
               <TabsTrigger value="ai-draft" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <Wand2 className="h-3.5 w-3.5" /> AI Draft
+                <Wand2 className="h-3.5 w-3.5" /> Create with AI
               </TabsTrigger>
               <TabsTrigger value="templates" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <FileText className="h-3.5 w-3.5" /> Templates
+                <FileText className="h-3.5 w-3.5" /> Browse Templates
               </TabsTrigger>
               <TabsTrigger value="parse" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <Upload className="h-3.5 w-3.5" /> Parse
+                <Upload className="h-3.5 w-3.5" /> Analyze Existing
               </TabsTrigger>
             </TabsList>
           )}
@@ -705,7 +705,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
                         Ask me to modify the document. For example:
                       </p>
                       <div className="space-y-1.5">
-                        {["Add a termination clause", "Change the notice period to 60 days", "Make the language more formal"].map((s) => (
+                        {["Add a termination clause", "Change the notice period to 60 days", "Make the language simpler and clearer"].map((s) => (
                           <button
                             key={s}
                             onClick={() => { setRefineInput(s); }}
@@ -963,10 +963,10 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
           <CardHeader className="bg-gradient-to-r from-amber-500/5 to-orange-500/5">
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="h-4 w-4 text-amber-500" />
-              <CardTitle className="text-base">Describe the document you need</CardTitle>
+              <CardTitle className="text-base">What document do you need?</CardTitle>
             </div>
             <CardDescription>
-              Tell me what you need in plain English. I&apos;ll ask for any missing details through our conversation, then open a full editor for you to review and refine.
+              Tell me what you need in plain English — for example, &ldquo;I&apos;m renting out my flat in Mumbai&rdquo;. I&apos;ll ask for any missing details, then open a full editor for you to review and refine.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-5">
@@ -1285,7 +1285,7 @@ function ParseTab() {
     <div className="space-y-4">
       <Card className="border-border/50 overflow-hidden">
         <CardHeader className="bg-gradient-to-r from-amber-500/5 to-orange-500/5">
-          <CardTitle className="text-base">Parse Existing Contract</CardTitle>
+          <CardTitle className="text-base">Analyze an Existing Document</CardTitle>
           <CardDescription>Upload a contract to extract parties, terms, obligations, and risks.</CardDescription>
         </CardHeader>
         <CardContent className="pt-5">

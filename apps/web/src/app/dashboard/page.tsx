@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import {
   FileText, MessageSquare, Search, Briefcase, Activity,
-  ArrowRight, Scale, Gavel, BookOpen, Shield, Landmark,
+  ArrowRight, Scale, Sparkles, BookOpen, Shield, Landmark,
   FileSearch, Upload, Wand2, Play,
 } from "lucide-react";
 import { healthCheck, listDocSessions, listJobs } from "@/lib/api";
@@ -44,51 +44,51 @@ export default function DashboardPage() {
   const features = [
     {
       icon: Search,
-      title: "Case Search",
+      title: "Legal Search",
       desc: "Search 100M+ Indian legal documents — Supreme Court, High Courts, Tribunals, statutes & case law.",
       href: "/search",
       color: "from-violet-500/10 to-purple-500/10",
       iconColor: "text-violet-500",
       iconBg: "bg-violet-500/10",
-      examples: ["Tenant eviction rights", "Section 498A dowry", "Bail conditions"],
+      examples: ["Employee termination rules", "Tenant eviction rights", "Startup investor agreements"],
     },
     {
       icon: MessageSquare,
-      title: "Doc Chat",
-      desc: `Upload contracts, agreements, or legal docs and ask AI questions about them.${docCount > 0 ? ` ${docCount} active sessions.` : ""}`,
+      title: "Review Document",
+      desc: `Upload any contract or agreement and ask questions in plain English.${docCount > 0 ? ` ${docCount} active sessions.` : ""}`,
       href: "/doc-chat",
       color: "from-emerald-500/10 to-teal-500/10",
       iconColor: "text-emerald-500",
       iconBg: "bg-emerald-500/10",
-      examples: ["Summarize key terms", "Find risky clauses", "Compare obligations"],
+      examples: ["Summarize this contract", "Are there any red flags?", "What if I cancel early?"],
     },
     {
       icon: FileText,
-      title: "Document Drafting",
-      desc: "Generate rental agreements, NDAs, service agreements & more with AI-guided field collection.",
+      title: "Create Document",
+      desc: "Describe what you need and the AI will create a ready-to-use legal document for you.",
       href: "/documents",
       color: "from-amber-500/10 to-orange-500/10",
       iconColor: "text-amber-500",
       iconBg: "bg-amber-500/10",
-      examples: ["Rental agreement", "NDA for vendor", "Legal notice"],
+      examples: ["Rental agreement", "NDA for vendor", "Employment offer letter"],
     },
     {
       icon: Briefcase,
-      title: "Research Jobs",
-      desc: `Submit deep legal research queries that run in the background and produce detailed memos.${jobCount > 0 ? ` ${jobCount} jobs.` : ""}`,
+      title: "Deep Research",
+      desc: `Ask a complex legal question and get a thorough research report with cases and recommendations.${jobCount > 0 ? ` ${jobCount} tasks.` : ""}`,
       href: "/jobs",
       color: "from-rose-500/10 to-pink-500/10",
       iconColor: "text-rose-500",
       iconBg: "bg-rose-500/10",
-      examples: ["Rent control tenant rights", "IP infringement remedies", "FEMA compliance"],
+      examples: ["Can my company fire me without notice?", "Property dispute resolution", "Freelancer tax obligations"],
     },
   ];
 
   const quickActions = [
-    { icon: Search, label: "Search a case", href: "/search", color: "text-violet-500", bg: "bg-violet-500/10" },
-    { icon: Upload, label: "Upload a document", href: "/doc-chat", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { icon: Wand2, label: "Draft an agreement", href: "/documents", color: "text-amber-500", bg: "bg-amber-500/10" },
-    { icon: Play, label: "Run a research job", href: "/jobs", color: "text-rose-500", bg: "bg-rose-500/10" },
+    { icon: Search, label: "Search legal topics", href: "/search", color: "text-violet-500", bg: "bg-violet-500/10" },
+    { icon: Upload, label: "Review a contract", href: "/doc-chat", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { icon: Wand2, label: "Create a document", href: "/documents", color: "text-amber-500", bg: "bg-amber-500/10" },
+    { icon: Play, label: "Start a research task", href: "/jobs", color: "text-rose-500", bg: "bg-rose-500/10" },
   ];
 
   return (
@@ -118,7 +118,7 @@ export default function DashboardPage() {
                   Welcome to LexHelm
                 </h1>
                 <p className="text-sm text-muted-foreground/90 mt-0.5">
-                  AI-powered legal research, document drafting & contract analysis for Indian law
+                  Create legal documents, understand contracts, and get answers to legal questions
                 </p>
               </div>
             </div>
@@ -204,8 +204,8 @@ export default function DashboardPage() {
           <Card className="bg-gradient-to-r from-primary/5 to-violet-500/5 border-primary/10">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Gavel className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm font-semibold">What can LexHelm do for you?</CardTitle>
+                <Sparkles className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm font-semibold">How can LexHelm help you?</CardTitle>
               </div>
             </CardHeader>
             <CardContent>

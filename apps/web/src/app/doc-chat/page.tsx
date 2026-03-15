@@ -15,11 +15,11 @@ import { formatDistanceToNow } from "date-fns";
 import { listDocSessions, uploadDocument, type DocSession } from "@/lib/api";
 
 const CAPABILITIES = [
-  { icon: ListChecks, label: "Summarize key terms & obligations", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-  { icon: AlertTriangle, label: "Identify risky or unfavorable clauses", color: "text-amber-500", bg: "bg-amber-500/10" },
-  { icon: Shield, label: "Check for missing standard protections", color: "text-blue-500", bg: "bg-blue-500/10" },
-  { icon: HelpCircle, label: "Ask any question about the document", color: "text-violet-500", bg: "bg-violet-500/10" },
-  { icon: Scale, label: "Compare terms against legal standards", color: "text-rose-500", bg: "bg-rose-500/10" },
+  { icon: ListChecks, label: "Get a plain-English summary of the document", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { icon: AlertTriangle, label: "Find out if anything is unfair to you", color: "text-amber-500", bg: "bg-amber-500/10" },
+  { icon: Shield, label: "Check for missing protections or red flags", color: "text-blue-500", bg: "bg-blue-500/10" },
+  { icon: HelpCircle, label: "Ask any question about what you're signing", color: "text-violet-500", bg: "bg-violet-500/10" },
+  { icon: Scale, label: "Understand your obligations and deadlines", color: "text-rose-500", bg: "bg-rose-500/10" },
 ];
 
 export default function DocChatPage() {
@@ -79,8 +79,8 @@ export default function DocChatPage() {
             <MessageSquare className="h-5 w-5 text-emerald-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Document Chat</h1>
-            <p className="text-sm text-muted-foreground">Upload contracts, agreements, or legal documents and chat with AI to analyze them.</p>
+            <h1 className="text-2xl font-bold tracking-tight">Review a Document</h1>
+            <p className="text-sm text-muted-foreground">Upload any contract, agreement, or legal document. Ask questions and get clear answers.</p>
           </div>
         </motion.div>
       </div>
@@ -171,7 +171,7 @@ export default function DocChatPage() {
                 </div>
                 <div className="pt-2 border-t border-border">
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Example: &ldquo;What is the termination clause?&rdquo;, &ldquo;Are there any auto-renewal terms?&rdquo;, &ldquo;Summarize the indemnity obligations.&rdquo;
+                    Example: &ldquo;What happens if I want to cancel early?&rdquo;, &ldquo;Are there any auto-renewal terms?&rdquo;, &ldquo;Give me a summary of this contract.&rdquo;
                   </p>
                 </div>
               </CardContent>
@@ -183,7 +183,7 @@ export default function DocChatPage() {
         <div>
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            Recent Sessions
+            Your Documents
           </h2>
           {loading ? (
             <div className="space-y-3">
@@ -200,7 +200,7 @@ export default function DocChatPage() {
               <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center mb-3">
                 <Upload className="h-7 w-7 text-muted-foreground/60" />
               </div>
-              <p className="text-sm text-muted-foreground">No sessions yet. Upload a document above to get started.</p>
+              <p className="text-sm text-muted-foreground">No documents reviewed yet. Upload a document above to get started.</p>
             </motion.div>
           ) : (
             <AnimatePresence>
