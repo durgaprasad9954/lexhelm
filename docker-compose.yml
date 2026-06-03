@@ -1,10 +1,29 @@
+version: '3.9'
+
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lexhelm_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   api:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
     ports:
-      - "8000:8080"
+      - "9000:8080"
     env_file:
       - .env.local
     environment:
@@ -16,12 +35,16 @@ services:
       - ./apps/api/templates:/app/templates
       - ./apps/api/gcs-credentials.json:/app/gcs-credentials.json:ro
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/healthz')"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
 
   worker:
     build:
@@ -38,5 +61,10 @@ services:
       - ./apps/api/gcs-credentials.json:/app/gcs-credentials.json:ro
     restart: unless-stopped
     depends_on:
+      postgres:
+        condition: service_healthy
       api:
         condition: service_healthy
+
+volumes:
+  postgres_data:

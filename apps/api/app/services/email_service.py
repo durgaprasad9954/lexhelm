@@ -10,7 +10,7 @@ from app.core import settings
 
 logger = logging.getLogger(__name__)
 
-ADMIN_NOTIFY_EMAILS = ["vikas@navyaai.com", "marketing@navyaai.com"]
+ADMIN_NOTIFY_EMAILS = ["durgaprasd165@gmail.com"]
 FRONTEND_URL = settings.frontend_url.rstrip("/")
 
 
@@ -178,3 +178,95 @@ def send_document_email(
         logger.info("Document email sent to %s (cc: %s) by %s", to, cc, sender_email)
     except Exception:
         logger.exception("Failed to send document email to %s", to)
+
+
+def send_consultation_notification(
+    name: str,
+    email: str,
+    phone: Optional[str],
+    consultation_type: str,
+    urgency: str,
+    subject: str,
+    description: str,
+    user_id: Optional[str] = None,
+) -> None:
+    """Notify admins about a new consultation request."""
+    if not _ensure_client():
+        return
+
+    # Format consultation type for display
+    type_labels = {
+        "general": "General Legal Advice",
+        "property": "Property & Real Estate",
+        "employment": "Employment & Labor",
+        "family": "Family Law",
+        "business": "Business & Corporate",
+        "criminal": "Criminal Law",
+        "consumer": "Consumer Protection",
+        "civil": "Civil Matters",
+    }
+    type_display = type_labels.get(consultation_type, consultation_type)
+
+    # Format urgency with color
+    urgency_colors = {
+        "low": "#10b981",      # green
+        "medium": "#f59e0b",   # amber
+        "high": "#f43f5e",     # rose
+        "urgent": "#dc2626",   # red
+    }
+    urgency_color = urgency_colors.get(urgency, "#6b7280")
+    urgency_display = urgency.upper()
+
+    phone_line = f'<p><strong>Phone:</strong> {phone}</p>' if phone else ''
+    user_line = f'<p><strong>User ID:</strong> {user_id}</p>' if user_id else '<p><em>Submitted by guest (not logged in)</em></p>'
+
+    html = f"""
+    <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 24px; border-radius: 12px 12px 0 0;">
+        <h2 style="color: white; margin: 0; font-size: 20px;">New Consultation Request</h2>
+        <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">
+          From {name} ({email})
+        </p>
+      </div>
+      <div style="border: 1px solid #e5e7eb; border-top: none; padding: 24px; border-radius: 0 0 12px 12px;">
+        <div style="margin-bottom: 16px;">
+          <span style="display: inline-block; background: {urgency_color}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase;">
+            {urgency_display} PRIORITY
+          </span>
+        </div>
+        
+        <p><strong>Consultation Type:</strong> {type_display}</p>
+        <p><strong>Subject:</strong> {subject}</p>
+        {phone_line}
+        {user_line}
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16px 0;" />
+        
+        <p style="margin-top: 0;"><strong>Description:</strong></p>
+        <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px; white-space: pre-wrap; font-size: 14px; line-height: 1.6;">
+          {description}
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16px 0;" />
+        
+        <p style="color: #6b7280; font-size: 13px; margin: 0;">
+          <strong>Action Required:</strong> Review and assign this consultation request in the admin panel.<br>
+          <a href="{FRONTEND_URL}/admin/consultations" style="color: #6366f1; text-decoration: none;">
+            View in Admin Panel →
+          </a>
+        </p>
+      </div>
+    </div>
+    """
+
+    try:
+        resend.Emails.send({
+            "from": f"LexHelm Consultations <{settings.resend_from_email}>",
+            "to": ADMIN_NOTIFY_EMAILS,
+            "subject": f"[Consultation] {urgency_display}: {subject} — {name}",
+            "html": html,
+            "reply_to": email,
+        })
+        logger.info("Consultation notification sent for %s (%s)", name, email)
+    except Exception:
+        logger.exception("Failed to send consultation notification for %s", email)

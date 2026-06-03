@@ -59,11 +59,31 @@ const SUGGESTIONS = [
   "Employment offer letter",
 ];
 
+function getInitialDraftRoute() {
+  if (typeof window === "undefined") {
+    return { template: undefined, prompt: undefined };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const template = params.get("template") || undefined;
+  const feature = params.get("feature");
+  const prompt = params.get("prompt") || undefined;
+
+  return {
+    template,
+    prompt: feature === "instant-lease"
+      ? "I want to start the instant lease agreement workflow. Please create a rental or lease agreement and ask me for the required details."
+      : prompt,
+  };
+}
+
 export default function DocumentsPage() {
+  const [initialRoute] = useState(getInitialDraftRoute);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("ai-draft");
-  const [preselectedTemplate, setPreselectedTemplate] = useState<string | undefined>();
+  const [preselectedTemplate, setPreselectedTemplate] = useState<string | undefined>(initialRoute.template);
+  const [initialDraftPrompt, setInitialDraftPrompt] = useState<string | undefined>(initialRoute.prompt);
   const [editorMode, setEditorMode] = useState(false);
 
   useEffect(() => {
@@ -75,6 +95,7 @@ export default function DocumentsPage() {
 
   const handleTemplateChat = (templateId: string) => {
     setPreselectedTemplate(templateId);
+    setInitialDraftPrompt(undefined);
     setActiveTab("ai-draft");
   };
 
@@ -118,7 +139,15 @@ export default function DocumentsPage() {
 
           <TabsContent value="ai-draft">
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-              <AIDraftTab preselectedTemplate={preselectedTemplate} onTemplateUsed={() => setPreselectedTemplate(undefined)} onEditorModeChange={setEditorMode} />
+              <AIDraftTab
+                preselectedTemplate={preselectedTemplate}
+                initialPrompt={initialDraftPrompt}
+                onTemplateUsed={() => {
+                  setPreselectedTemplate(undefined);
+                  setInitialDraftPrompt(undefined);
+                }}
+                onEditorModeChange={setEditorMode}
+              />
             </motion.div>
           </TabsContent>
 
@@ -298,8 +327,9 @@ async function exportEditorAsDocx(editorHtml: string, title: string) {
 }
 
 /* ───────── AI Draft Tab ───────── */
-function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }: {
+function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEditorModeChange }: {
   preselectedTemplate?: string;
+  initialPrompt?: string;
   onTemplateUsed: () => void;
   onEditorModeChange: (v: boolean) => void;
 }) {
@@ -335,7 +365,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
   const [emailSending, setEmailSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const refineScrollRef = useRef<HTMLDivElement>(null);
-  const templateUsedRef = useRef(false);
+  const templateUsedRef = useRef<string | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -343,28 +373,21 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
 
   useEffect(() => {
     if (generatedContent) {
-      setEditableFields({ ...collectedFields });
       autoCollapse();
       onEditorModeChange(true);
     }
-  }, [generatedContent]);
+  }, [autoCollapse, generatedContent, onEditorModeChange]);
 
-  useEffect(() => {
-    if (preselectedTemplate && !templateUsedRef.current) {
-      templateUsedRef.current = true;
-      const label = TEMPLATE_LABELS[preselectedTemplate] || preselectedTemplate;
-      handleSend(`I need a ${label}`, preselectedTemplate);
-      onTemplateUsed();
-    }
-  }, [preselectedTemplate]);
-
-  const applyResponse = (res: DraftChatResponse) => {
+  const applyResponse = useCallback((res: DraftChatResponse) => {
     setSessionId(res.session_id);
     setPhase(res.phase);
     setTemplateId(res.template_id);
     setCollectedFields(res.collected_fields);
     setMissingFields(res.missing_fields);
-    if (res.generated_content) setGeneratedContent(res.generated_content);
+    if (res.generated_content) {
+      setEditableFields({ ...res.collected_fields });
+      setGeneratedContent(res.generated_content);
+    }
 
     const assistantMsg: ChatMsg = {
       id: `a-${Date.now()}`,
@@ -372,9 +395,9 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
       content: res.assistant_message,
     };
     setMessages((prev) => [...prev, assistantMsg]);
-  };
+  }, []);
 
-  const handleSend = async (text?: string, tplId?: string) => {
+  const handleSend = useCallback(async (text?: string, tplId?: string) => {
     const msg = (text || input).trim();
     if (!msg || sending) return;
     setInput("");
@@ -402,7 +425,16 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
     } finally {
       setSending(false);
     }
-  };
+  }, [applyResponse, input, sending, sessionId]);
+
+  useEffect(() => {
+    if (preselectedTemplate && templateUsedRef.current !== `${preselectedTemplate}:${initialPrompt || ""}`) {
+      templateUsedRef.current = `${preselectedTemplate}:${initialPrompt || ""}`;
+      const label = TEMPLATE_LABELS[preselectedTemplate] || preselectedTemplate;
+      handleSend(initialPrompt || `I need a ${label}`, preselectedTemplate);
+      onTemplateUsed();
+    }
+  }, [preselectedTemplate, initialPrompt, handleSend, onTemplateUsed]);
 
   const handleConfirm = async () => {
     if (!sessionId) return;
@@ -431,7 +463,7 @@ function AIDraftTab({ preselectedTemplate, onTemplateUsed, onEditorModeChange }:
     setEditorHtml("");
     setEditableFields({});
     setPendingEdit(null);
-    templateUsedRef.current = false;
+    templateUsedRef.current = null;
   };
 
   const copyContent = () => {

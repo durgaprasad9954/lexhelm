@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
-import { Scale, Shield, Zap, BookOpen, FileText, Search, Sparkles } from "lucide-react";
+import { Scale, Shield, Zap, BookOpen, FileText, Search, Sparkles, AlertCircle, Wifi, WifiOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { toast } from "sonner";
+import { healthCheck } from "@/lib/api";
 
 const fadeUp = (delay: number) => ({
   initial: { opacity: 0, y: 20 },
@@ -16,12 +18,28 @@ const fadeUp = (delay: number) => ({
 export default function LoginPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading, googleClientId, loginWithGoogle } = useAuth();
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [apiStatus, setApiStatus] = useState<"checking" | "online" | "offline">("checking");
+
+  // Debug: Log the client ID being used
+  useEffect(() => {
+    console.log("[Login] Google Client ID:", googleClientId);
+    console.log("[Login] Client ID length:", googleClientId?.length);
+    console.log("[Login] Client ID ends with:", googleClientId?.slice(-30));
+  }, [googleClientId]);
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       router.replace("/dashboard");
     }
   }, [isAuthenticated, isLoading, router]);
+
+  // Check API connectivity
+  useEffect(() => {
+    healthCheck()
+      .then(() => setApiStatus("online"))
+      .catch(() => setApiStatus("offline"));
+  }, []);
 
   if (isLoading) {
     return (
@@ -191,23 +209,105 @@ export default function LoginPage() {
               className="space-y-4"
             >
               {googleClientId ? (
-                <div className="flex justify-center">
-                  <GoogleOAuthProvider clientId={googleClientId}>
-                    <GoogleLogin
-                      onSuccess={(response) => {
-                        loginWithGoogle(response).catch(console.error);
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Client ID configured: {googleClientId.slice(0, 20)}...
+                  </p>
+                  {loginError && (
+                    <div className="w-full rounded-lg border border-red-200 bg-red-50 p-3 text-center">
+                      <div className="flex items-center justify-center gap-2 text-sm text-red-700">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>{loginError}</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-center">
+                    <GoogleOAuthProvider
+                      clientId={googleClientId}
+                      onScriptLoadError={() => {
+                        console.error("[Google OAuth] Failed to load Google script");
+                        setLoginError("Failed to load Google Sign-In script. Check your internet connection.");
                       }}
-                      onError={() => {
-                        console.error("Google login failed");
+                    >
+                      <GoogleLogin
+                        onSuccess={async (response) => {
+                          console.log("[Login] Google onSuccess triggered", response);
+                          setLoginError(null);
+                          try {
+                            await loginWithGoogle(response);
+                          } catch (err) {
+                            const message = err instanceof Error ? err.message : "Login failed";
+                            setLoginError(message);
+                            toast.error(message);
+                            console.error("[Login] Google login error:", err);
+                          }
+                        }}
+                        onError={(error) => {
+                          console.error("[Login] Google onError triggered:", error);
+                          // Handle specific Google OAuth errors
+                          const errorMsg = error?.toString() || "";
+                          if (errorMsg.includes("invalid_client") || errorMsg.includes("401")) {
+                            setLoginError(
+                              "Google OAuth configuration error (invalid_client). " +
+                              "The Client ID may be incorrect or not authorized for this domain. " +
+                              "Please verify the OAuth credentials in Google Cloud Console."
+                            );
+                          } else {
+                            setLoginError("Google sign-in popup closed or failed. Please try again.");
+                          }
+                          toast.error("Google sign-in failed. Please try again.");
+                        }}
+                        theme="outline"
+                        size="large"
+                        width="320"
+                        text="signin_with"
+                        shape="rectangular"
+                        logo_alignment="left"
+                      />
+                    </GoogleOAuthProvider>
+                  </div>
+                  {/* Dev bypass for local testing */}
+                  <div className="w-full border-t border-dashed border-border pt-4 mt-2">
+                    <p className="text-xs text-muted-foreground text-center mb-2">
+                      Having trouble with Google Sign-In?
+                    </p>
+                    <button
+                      onClick={() => {
+                        // Create a mock dev session
+                        const devUser = {
+                          id: "dev-user-001",
+                          email: "dev@lexhelm.local",
+                          name: "Developer",
+                          picture: undefined,
+                        };
+                        const devOrg = {
+                          id: "dev-org-001",
+                          name: "LexHelm Dev",
+                        };
+                        const devToken = "dev-token-" + Date.now();
+                        
+                        // Store in localStorage (same format as auth.tsx)
+                        localStorage.setItem("lexhelm_auth", JSON.stringify({ 
+                          user: devUser, 
+                          org: devOrg, 
+                          token: devToken 
+                        }));
+                        
+                        // Also set beta status as approved to bypass waitlist
+                        localStorage.setItem("lexhelm_beta_status", JSON.stringify({
+                          email: devUser.email,
+                          status: "approved",
+                          ts: Date.now(),
+                        }));
+                        
+                        // Reload to trigger auth state
+                        window.location.reload();
                       }}
-                      theme="outline"
-                      size="large"
-                      width="320"
-                      text="signin_with"
-                      shape="rectangular"
-                      logo_alignment="left"
-                    />
-                  </GoogleOAuthProvider>
+                      className="w-full py-2 px-4 rounded-lg border border-border bg-accent/50 hover:bg-accent text-sm font-medium text-foreground transition-colors"
+                    >
+                      Continue as Developer (Test Mode)
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -257,6 +357,33 @@ export default function LoginPage() {
                   <span className="text-[10px] font-medium text-muted-foreground">{item.label}</span>
                 </motion.div>
               ))}
+            </motion.div>
+
+            {/* API Status */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.75 }}
+              className="flex items-center justify-center gap-2 text-xs"
+            >
+              {apiStatus === "checking" && (
+                <>
+                  <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-muted-foreground">Checking connection...</span>
+                </>
+              )}
+              {apiStatus === "online" && (
+                <>
+                  <Wifi className="h-3 w-3 text-emerald-500" />
+                  <span className="text-emerald-600">Connected to LexHelm</span>
+                </>
+              )}
+              {apiStatus === "offline" && (
+                <>
+                  <WifiOff className="h-3 w-3 text-red-500" />
+                  <span className="text-red-600">Cannot connect to server</span>
+                </>
+              )}
             </motion.div>
 
             {/* Footer */}

@@ -34,18 +34,26 @@ export interface AuthGoogleResponse {
 }
 
 /** Send Google ID token to backend, get back a signed app JWT. */
-export const loginWithGoogleBackend = (credential: string) =>
-  fetch(`${API_BASE}/auth/google`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ credential }),
-  }).then(async (res) => {
+export const loginWithGoogleBackend = async (credential: string) => {
+  console.log(`[API] Sending auth request to ${API_BASE}/auth/google`);
+  try {
+    const res = await fetch(`${API_BASE}/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+    console.log(`[API] Auth response status: ${res.status}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
+      console.error("[API] Auth error response:", body);
       throw new Error(body.detail || `Auth error ${res.status}`);
     }
     return res.json() as Promise<AuthGoogleResponse>;
-  });
+  } catch (err) {
+    console.error("[API] Network or parsing error:", err);
+    throw err;
+  }
+};
 
 // ---------- Health ----------
 export const healthCheck = () => apiFetch<{ status: string }>("/healthz");
@@ -359,3 +367,49 @@ export const reviewBetaRequest = (requestId: string, status: "approved" | "rejec
   });
 
 export const getAdminMetrics = () => apiFetch<MetricsSummary>("/beta/admin/metrics");
+
+// ---------- Consultations ----------
+export interface ConsultationRequest {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  consultation_type: string;
+  urgency: "low" | "medium" | "high" | "urgent";
+  subject: string;
+  description: string;
+  status: "pending" | "assigned" | "in_progress" | "completed" | "cancelled";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsultationSubmitData {
+  name: string;
+  email: string;
+  phone?: string;
+  consultation_type: string;
+  urgency: "low" | "medium" | "high" | "urgent";
+  subject: string;
+  description: string;
+}
+
+export const submitConsultation = (data: ConsultationSubmitData) =>
+  apiFetch<ConsultationRequest>("/consultations/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const listConsultations = (statusFilter?: string, limit = 50, offset = 0) => {
+  const params = new URLSearchParams();
+  if (statusFilter) params.append("status", statusFilter);
+  params.append("limit", String(limit));
+  params.append("offset", String(offset));
+  return apiFetch<{ requests: ConsultationRequest[]; total: number }>(`/consultations/list?${params}`);
+};
+
+export const myConsultations = (limit = 50, offset = 0) =>
+  apiFetch<{ requests: ConsultationRequest[]; total: number }>(`/consultations/my-requests?limit=${limit}&offset=${offset}`);
+
+export const getConsultation = (id: string) =>
+  apiFetch<ConsultationRequest>(`/consultations/${id}`);

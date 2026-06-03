@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   FileText, MessageSquare, Search, Briefcase, Activity,
   ArrowRight, Scale, Sparkles, BookOpen, Shield, Landmark,
-  FileSearch, Upload, Wand2, Play,
+  FileSearch, Upload, Wand2, Play, Clock, Zap, Home, Users,
 } from "lucide-react";
 import { healthCheck, listDocSessions, listJobs } from "@/lib/api";
 import Link from "next/link";
@@ -87,8 +87,10 @@ export default function DashboardPage() {
   const quickActions = [
     { icon: Search, label: "Search legal topics", href: "/search", color: "text-violet-500", bg: "bg-violet-500/10" },
     { icon: Upload, label: "Review a contract", href: "/doc-chat", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { icon: Home, label: "Instant lease agreement", href: "/documents?template=rental_agreement&feature=instant-lease", color: "text-sky-500", bg: "bg-sky-500/10" },
     { icon: Wand2, label: "Create a document", href: "/documents", color: "text-amber-500", bg: "bg-amber-500/10" },
     { icon: Play, label: "Start a research task", href: "/jobs", color: "text-rose-500", bg: "bg-rose-500/10" },
+    { icon: Users, label: "Start Consultation", href: "/consultation", color: "text-indigo-500", bg: "bg-indigo-500/10" },
   ];
 
   return (
@@ -160,6 +162,47 @@ export default function DashboardPage() {
           animate="show"
           className="grid gap-4 md:grid-cols-2"
         >
+          <motion.div variants={item} className="md:col-span-2">
+            <Link href="/documents?template=rental_agreement&feature=instant-lease" className="block group">
+              <Card className="relative overflow-hidden border-sky-500/20 bg-gradient-to-br from-sky-500/10 via-background to-emerald-500/10 transition-all duration-300 hover:shadow-lg hover:border-sky-500/40 hover:-translate-y-0.5">
+                <CardContent className="relative p-5 md:p-6">
+                  <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="h-12 w-12 rounded-xl bg-sky-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105">
+                        <Home className="h-6 w-6 text-sky-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <CardTitle className="text-lg font-semibold">
+                            Instant Lease Agreement in Four Clicks
+                          </CardTitle>
+                          <Badge variant="secondary" className="gap-1 text-[11px]">
+                            <Clock className="h-3 w-3" /> Fast track
+                          </Badge>
+                        </div>
+                        <CardDescription className="mt-1 max-w-2xl text-sm">
+                          Start a guided rental or lease agreement flow, collect landlord, tenant, property, rent, deposit, and term details, then generate a ready-to-edit document.
+                        </CardDescription>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {["Rental agreement", "Lease terms", "Ready to edit"].map((ex) => (
+                            <span key={ex} className="text-[11px] font-medium text-muted-foreground bg-background/80 px-2 py-0.5 rounded-md">
+                              {ex}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-sky-600 dark:text-sky-400 md:shrink-0">
+                      <Zap className="h-4 w-4" />
+                      Generate now
+                      <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </motion.div>
+
           {features.map((f) => (
             <motion.div key={f.href} variants={item}>
               <Link href={f.href} className="block group">

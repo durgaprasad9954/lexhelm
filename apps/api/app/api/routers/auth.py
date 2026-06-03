@@ -51,13 +51,16 @@ def _sign_app_jwt(user: dict, org: dict) -> str:
 @router.post("/auth/google", response_model=AuthResponse, tags=["auth"])
 async def login_with_google(body: GoogleLoginRequest):
     """Verify a Google ID token, then return a signed app JWT."""
+    print(f"[Auth] Received Google login request, credential length: {len(body.credential)}")
     try:
         idinfo = id_token.verify_oauth2_token(
             body.credential,
             google_requests.Request(),
             GOOGLE_CLIENT_ID,
         )
+        print(f"[Auth] Google token verified for: {idinfo.get('email')}")
     except ValueError as e:
+        print(f"[Auth] Google token verification failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid Google token: {e}",

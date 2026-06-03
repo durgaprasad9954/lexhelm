@@ -86,10 +86,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loginWithGoogle = useCallback(async (credentialResponse: { credential?: string }) => {
-    if (!credentialResponse.credential) throw new Error("No credential received");
+    if (!credentialResponse.credential) throw new Error("No credential received from Google");
 
+    console.log("[Auth] Received Google credential, sending to backend...");
+    
     // Send Google ID token to backend — it verifies and returns a signed JWT
     const result = await loginWithGoogleBackend(credentialResponse.credential);
+    console.log("[Auth] Backend auth successful, user:", result.user.email);
     const googleUser: AuthUser = {
       id: result.user.id,
       email: result.user.email,

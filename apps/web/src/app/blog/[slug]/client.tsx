@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Scale, Clock, ArrowRight, ArrowLeft, ChevronRight, Sparkles, Users, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,13 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function BlogPostClient({ post }: { post: BlogPost }) {
   const headerRef = useRef<HTMLElement>(null);
+  const [mounted, setMounted] = useState(false);
   const { scrollYProgress } = useScroll({ target: headerRef, offset: ["start start", "end start"] });
   const progressWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">

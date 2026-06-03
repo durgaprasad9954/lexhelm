@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   Scale, CheckCircle2, ArrowRight, FileText, Shield,
   AlertTriangle, Handshake, UserCheck, Home, ChevronRight,
@@ -56,9 +56,14 @@ export function LandingPageClient({ slug, page }: { slug: string; page: PageData
   const IconComponent = ICONS[page.icon] || FileText;
   const colors = COLORS[page.color] || COLORS.violet;
   const heroRef = useRef<HTMLElement>(null);
+  const [mounted, setMounted] = useState(false);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   const heroY = useTransform(scrollYProgress, [0, 1], [0, 80]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background overflow-hidden">
@@ -132,7 +137,7 @@ export function LandingPageClient({ slug, page }: { slug: string; page: PageData
           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
         />
 
-        <motion.div style={{ y: heroY, opacity: heroOpacity }} className="relative max-w-6xl mx-auto px-4 sm:px-6">
+        <motion.div style={mounted ? { y: heroY, opacity: heroOpacity } : undefined} className="relative max-w-6xl mx-auto px-4 sm:px-6">
           <motion.div className="max-w-3xl">
             <motion.div
               custom={0}

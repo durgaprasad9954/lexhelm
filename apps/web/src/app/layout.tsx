@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthShell } from "@/components/auth-shell";
@@ -7,9 +7,10 @@ import { Providers } from "@/components/providers";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://lexhelm.com";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -126,7 +127,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${manrope.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${geistMono.variable} antialiased text-[17px] leading-relaxed`}
       >
         <Providers>
           <AuthShell>{children}</AuthShell>

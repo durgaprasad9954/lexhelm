@@ -14,6 +14,7 @@ const PUBLIC_PATHS = ["/login", "/create", "/blog"];
 const PUBLIC_EXACT = ["/"];
 const ADMIN_EMAILS = ["vikas@navyaai.com", "anand@navyaai.com", "marketing@navyaai.com"];
 const BETA_STATUS_KEY = "lexhelm_beta_status";
+const DEV_EMAILS = ["dev@lexhelm.local"];
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -22,6 +23,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || PUBLIC_EXACT.includes(pathname);
   const isAdmin = user?.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false;
+  const isDev = user?.email ? DEV_EMAILS.includes(user.email.toLowerCase()) : false;
   const isAdminRoute = pathname.startsWith("/admin");
 
   const [betaStatus, setBetaStatus] = useState<string | null>(null);
@@ -29,8 +31,8 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
   // Check beta status when user authenticates
   useEffect(() => {
-    if (!isAuthenticated || !user?.email || isAdmin) {
-      setBetaStatus(isAdmin ? "approved" : null);
+    if (!isAuthenticated || !user?.email || isAdmin || isDev) {
+      setBetaStatus(isAdmin || isDev ? "approved" : null);
       return;
     }
 
@@ -129,7 +131,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   }
 
   // Beta gate — show pending screen if not approved
-  if (betaStatus !== "approved" && !isAdmin) {
+  if (betaStatus !== "approved" && !isAdmin && !isDev) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <motion.div

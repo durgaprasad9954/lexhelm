@@ -146,6 +146,23 @@ class Settings(BaseSettings):
         description="Public frontend URL for email links.",
     )
 
+    # ── WhatsApp (consultation notifications) ────────────────────
+    whatsapp_access_token: Optional[str] = Field(
+        None,
+        validation_alias=AliasChoices("WHATSAPP_ACCESS_TOKEN", "whatsapp_access_token"),
+        description="WhatsApp Business API access token.",
+    )
+    whatsapp_phone_number_id: Optional[str] = Field(
+        None,
+        validation_alias=AliasChoices("WHATSAPP_PHONE_NUMBER_ID", "whatsapp_phone_number_id"),
+        description="WhatsApp Business phone number ID.",
+    )
+    whatsapp_admin_number: Optional[str] = Field(
+        None,
+        validation_alias=AliasChoices("WHATSAPP_ADMIN_NUMBER", "whatsapp_admin_number"),
+        description="Admin WhatsApp number to receive consultation notifications (with country code, e.g., 919876543210).",
+    )
+
     # ── Search Cache ─────────────────────────────────────────────
     search_cache_ttl: int = Field(
         3600,

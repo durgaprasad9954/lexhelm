@@ -67,6 +67,44 @@ async def get_request_context(
     return RequestContext(user_id=user.id, user=user, org_id=org_id, role=jwt_payload.role, email=user.email)
 
 
+async def get_request_context_optional(
+    jwt_payload: Optional[JWTPayload] = Depends(get_jwt_payload_optional),
+    session: AsyncSession = Depends(get_db_session),
+    user_service: UserService = Depends(get_user_service),
+    org_service: OrgService = Depends(get_org_service),
+) -> Optional[RequestContext]:
+    """Get request context if user is authenticated, otherwise return None."""
+    if not jwt_payload:
+        return None
+    
+    org_id = jwt_payload.org_id
+    if not org_id:
+        return None
+
+    try:
+        await org_service.get_or_create_org(
+            org_id=org_id, org_name=jwt_payload.org_name or "", auto_provision=settings.auto_provision_users,
+        )
+    except ValueError:
+        return None
+
+    try:
+        user = await user_service.get_or_create_user(
+            user_id=jwt_payload.user_id, email=jwt_payload.email,
+            full_name=jwt_payload.name or jwt_payload.email, auto_provision=settings.auto_provision_users,
+        )
+    except ValueError:
+        return None
+
+    if settings.auto_provision_users:
+        await org_service.ensure_org_membership(
+            user_id=user.id, org_id=org_id, role=jwt_payload.role or "ASSOCIATE",
+        )
+        await session.commit()
+
+    return RequestContext(user_id=user.id, user=user, org_id=org_id, role=jwt_payload.role, email=user.email)
+
+
 async def get_rls_session(
     context: RequestContext = Depends(get_request_context),
     session: AsyncSession = Depends(get_db_session),

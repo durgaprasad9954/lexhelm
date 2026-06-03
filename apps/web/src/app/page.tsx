@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, useScroll, useTransform } from "framer-motion";
@@ -90,9 +90,14 @@ export default function LandingPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
   const heroRef = useRef<HTMLElement>(null);
+  const [mounted, setMounted] = useState(false);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   const heroY = useTransform(scrollYProgress, [0, 1], [0, 100]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
