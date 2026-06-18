@@ -1,5 +1,22 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-const API_TOKEN = process.env.NEXT_PUBLIC_API_TOKEN || "lexhelm-dev-token-2024";
+function resolveApiBase() {
+  const configured = process.env.NEXT_PUBLIC_API_URL || "/api";
+  if (typeof window === "undefined") {
+    return configured;
+  }
+
+  const isLanPage =
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1";
+
+  if (isLanPage && configured.startsWith("http://localhost")) {
+    return "/api";
+  }
+
+  return configured;
+}
+
+export const API_BASE = resolveApiBase();
+export const API_TOKEN = process.env.NEXT_PUBLIC_API_TOKEN || "lexhelm-dev-token-2024";
 
 // JWT bearer token — set by AuthProvider
 let _bearerToken: string | null = null;
@@ -21,9 +38,15 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    console.error("[API] Request failed", {
+      path,
+      status: res.status,
+      body,
+    });
     throw new Error(body.detail || `API error ${res.status}`);
   }
-  return res.json();
+  const body = await res.json();
+  return body;
 }
 
 // ---------- Auth ----------
@@ -74,11 +97,30 @@ export interface SearchResponse {
   page: number;
   page_size: number;
 }
+export interface SearchChatSource {
+  doc_id?: number | null;
+  title?: string | null;
+  headline?: string | null;
+  court?: string | null;
+  date?: string | null;
+  citation?: string | null;
+}
+export interface SearchChatResponse {
+  query: string;
+  answer: string;
+  sources: SearchChatSource[];
+}
 export const searchCases = async (query: string, page = 1, pageSize = 10): Promise<SearchResponse> => {
   const backendPage = Math.max(0, page - 1);
   const res = await apiFetch<SearchResponse>(`/search/cases?query=${encodeURIComponent(query)}&page=${backendPage}&max_pages=${Math.ceil(pageSize / 10)}`);
   return { ...res, page, page_size: pageSize };
 };
+export const askLegalSearch = (query: string) =>
+  apiFetch<SearchChatResponse>("/search/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
 
 // ---------- Documents ----------
 export interface Template {
@@ -100,6 +142,7 @@ export interface GenerateResponse {
   content: string;
   template_id: string;
   format: string;
+  session_id?: string | null;
   suggestions?: string[];
 }
 export const generateDocument = (req: GenerateRequest) =>
@@ -231,10 +274,20 @@ export const refineDraftDocument = (sessionId: string, message: string, currentD
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, current_document: currentDocument }),
   });
+export const saveDraftChatContent = (sessionId: string, content: string) =>
+  apiFetch<DraftChatResponse>(`/draft-chat/${sessionId}/content`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
 export const getDraftChatSession = (id: string) =>
   apiFetch<DraftChatSessionDetail>(`/draft-chat/${id}`);
 export const listDraftChatSessions = (limit = 20) =>
   apiFetch<{ sessions: DraftChatSessionSummary[] }>(`/draft-chat?limit=${limit}`);
+
+export const deleteDraftChatSession = (id: string) =>
+  apiFetch<{ message: string }>(`/draft-chat/${id}`, { method: "DELETE" });
+
 
 // ---------- Email ----------
 export interface SendDocumentEmailRequest {
@@ -251,6 +304,71 @@ export const sendDocumentEmail = (req: SendDocumentEmailRequest) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
   });
+
+// ---------- WhatsApp Documents ----------
+export interface CreateWhatsAppDocumentRequest {
+  phone_number: string;
+  document_type: string;
+  params: Record<string, string>;
+  template_id?: string;
+  name?: string;
+  email?: string;
+  requester_phone_number?: string;
+  requester_name?: string;
+  ai_enhance?: boolean;
+}
+export interface CreateWhatsAppDocumentResponse {
+  session_id: string;
+  status: string;
+  message: string;
+  warning?: string | null;
+  delivery_diagnostics?: {
+    recipient_phone?: string;
+    document_type?: string;
+    document_link?: string;
+    session_id?: string;
+    attempts?: Array<{
+      channel?: string;
+      ok?: boolean;
+      error?: string | null;
+      response_id?: string | null;
+    }>;
+  } | null;
+}
+export const createWhatsAppDocument = async (req: CreateWhatsAppDocumentRequest) => {
+  console.log("[API] Sending WhatsApp document create request", {
+    phone_number: req.phone_number,
+    template_id: req.template_id,
+    document_type: req.document_type,
+    requester_phone_number: req.requester_phone_number,
+    name: req.name,
+  });
+  const result = await apiFetch<CreateWhatsAppDocumentResponse>("/whatsapp-documents/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  console.log("[API] WhatsApp document create response", result);
+  return result;
+};
+
+export interface WhatsAppDocumentStatus {
+  session_id: string;
+  status: string;
+  document_type: string;
+  version: number;
+  phone_number: string;
+  created_at: string | null;
+  updated_at: string | null;
+  completed_at: string | null;
+}
+export const getWhatsAppDocumentStatus = (sessionId: string) =>
+  apiFetch<WhatsAppDocumentStatus>(`/whatsapp-documents/status/${sessionId}`);
+
+export const listWhatsAppDocumentSessions = (phoneNumber: string, limit = 10) =>
+  apiFetch<{ sessions: WhatsAppDocumentStatus[]; total: number }>(
+    `/whatsapp-documents/user-sessions?phone_number=${encodeURIComponent(phoneNumber)}&limit=${limit}`
+  );
 
 // ---------- Jobs ----------
 export interface Job {

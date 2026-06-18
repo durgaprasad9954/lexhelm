@@ -1,6 +1,8 @@
 """LexHelm V2 — Unified FastAPI entry point."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,6 +11,9 @@ from app.core import settings
 from app.core.security import TokenAuthMiddleware, resolve_admin_token
 from app.db import async_engine
 from app.db.init_db import init_models
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 
 tags_metadata = [
     {"name": "health", "description": "Health probes."},
@@ -60,6 +65,7 @@ public_exempt = (
     "/healthz", "/healthz/",
     f"{settings.api_prefix}/healthz", f"{settings.api_prefix}/healthz/",
     f"{settings.api_prefix}/auth/google", f"{settings.api_prefix}/auth/google/",
+    f"{settings.api_prefix}/consultations/submit", f"{settings.api_prefix}/consultations/submit/",
 )
 app.add_middleware(TokenAuthMiddleware, exempt_paths=public_exempt)
 
@@ -68,6 +74,7 @@ app.add_middleware(TokenAuthMiddleware, exempt_paths=public_exempt)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=settings.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],

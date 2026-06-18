@@ -1,19 +1,16 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  FileText,
-  Home,
+  LayoutDashboard,
   MessageSquare,
-  Search,
-  Scale,
-  Briefcase,
+  FileText,
   Building2,
-  LogOut,
+  Scale,
   ChevronUp,
-  Sparkles,
+  LogOut,
   ShieldCheck,
   PanelLeftClose,
   PanelLeftOpen,
@@ -23,11 +20,10 @@ import { useAuth } from "@/lib/auth";
 import { useSidebar } from "@/lib/sidebar-context";
 
 const NAV = [
-  { href: "/dashboard", label: "Home", icon: Home, color: "text-blue-500" },
-  { href: "/search", label: "Legal Search", icon: Search, color: "text-violet-500" },
-  { href: "/doc-chat", label: "Review Document", icon: MessageSquare, color: "text-emerald-500" },
-  { href: "/documents", label: "Create Document", icon: FileText, color: "text-amber-500" },
-  { href: "/jobs", label: "Deep Research", icon: Briefcase, color: "text-rose-500" },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, color: "text-foreground/70" },
+  { href: "/documents", label: "Create Documents", icon: FileText, color: "text-foreground/70" },
+  { href: "/doc-chat", label: "Review Document", icon: MessageSquare, color: "text-foreground/70" },
+  { href: "/documents?tab=saved", label: "Your Documents", icon: FileText, color: "text-foreground/70" },
 ] as const;
 
 const ADMIN_EMAILS = ["vikas@navyaai.com", "anand@navyaai.com", "marketing@navyaai.com"];
@@ -58,8 +54,9 @@ function UserAvatar({ user }: { user: { name: string; picture?: string } }) {
 }
 
 export function AppSidebar() {
-  const pathname = usePathname();
   const { user, org, logout } = useAuth();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { collapsed, toggle } = useSidebar();
   const isAdmin = user?.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -82,13 +79,13 @@ export function AppSidebar() {
     )}>
       {/* Brand */}
       <div className={cn("flex items-center gap-3 py-5", collapsed ? "justify-center px-2" : "px-5")}>
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary shadow-sm shrink-0">
-          <Scale className="h-5 w-5 text-primary-foreground" />
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#415CA4] shadow-sm shrink-0">
+          <Scale className="h-5 w-5 text-white" />
         </div>
         {!collapsed && (
           <div className="flex flex-col">
             <span className="text-base font-bold tracking-tight">LexHelm</span>
-            <span className="text-[11px] font-medium text-muted-foreground">AI Legal Assistant</span>
+            <span className="text-[11px] font-medium text-muted-foreground">Legal Workspace</span>
           </div>
         )}
       </div>
@@ -111,7 +108,11 @@ export function AppSidebar() {
           </p>
         )}
         {NAV.map(({ href, label, icon: Icon, color }) => {
-          const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+          const [pathOnly, queryString] = href.split("?");
+          const tab = queryString ? new URLSearchParams(queryString).get("tab") : null;
+          const active = tab
+            ? pathname === pathOnly && searchParams.get("tab") === tab
+            : pathname === pathOnly || (pathOnly !== "/dashboard" && pathname.startsWith(pathOnly));
           return (
             <Link
               key={href}
@@ -170,7 +171,7 @@ export function AppSidebar() {
                   transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                 />
               )}
-              <ShieldCheck className={cn("relative h-4 w-4 transition-colors shrink-0", pathname.startsWith("/admin") ? "text-primary" : "text-cyan-500 group-hover:text-foreground")} />
+              <ShieldCheck className={cn("relative h-4 w-4 transition-colors shrink-0", pathname.startsWith("/admin") ? "text-primary" : "text-primary group-hover:text-foreground")} />
               {!collapsed && <span className="relative">Admin</span>}
               {pathname.startsWith("/admin") && !collapsed && (
                 <motion.div
@@ -183,21 +184,6 @@ export function AppSidebar() {
           </>
         )}
       </nav>
-
-      {/* AI Badge */}
-      {!collapsed && (
-        <div className="mx-3 mb-3">
-          <div className="rounded-lg bg-gradient-to-r from-primary/10 via-violet-500/10 to-primary/5 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              <span className="text-xs font-semibold text-primary">AI Powered</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Create documents, understand contracts, and find legal answers — all powered by AI.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Collapse toggle */}
       <div className={cn("flex mb-1", collapsed ? "justify-center px-2" : "px-3")}>

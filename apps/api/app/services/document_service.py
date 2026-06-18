@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import base64
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -26,19 +28,251 @@ def _strip_json_fences(raw: str) -> str:
             raw = raw[:-3].strip()
     return raw
 
+
+INDIAN_STATES_AND_UTS = {
+    "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh", "goa",
+    "gujarat", "haryana", "himachal pradesh", "jharkhand", "karnataka", "kerala",
+    "madhya pradesh", "maharashtra", "manipur", "meghalaya", "mizoram", "nagaland",
+    "odisha", "punjab", "rajasthan", "sikkim", "tamil nadu", "telangana", "tripura",
+    "uttar pradesh", "uttarakhand", "west bengal", "andaman and nicobar islands",
+    "chandigarh", "dadra and nagar haveli and daman and diu", "delhi", "jammu and kashmir",
+    "ladakh", "lakshadweep", "puducherry",
+}
+
+AADHAAR_RE = re.compile(r"^\d{12}$")
+NAME_RE = re.compile(r"^[A-Za-z][A-Za-z .'-]{1,79}$")
+
+
+def _normalize_text(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _normalize_aadhaar(value: object) -> str:
+    return re.sub(r"\D+", "", str(value or ""))
+
+
+def _looks_like_gibberish(value: str) -> bool:
+    compact = re.sub(r"[^A-Za-z]", "", value).lower()
+    if len(compact) < 7:
+        return False
+    vowels = sum(1 for char in compact if char in "aeiou")
+    vowel_ratio = vowels / max(len(compact), 1)
+    return vowel_ratio < 0.18
+
+
+def _parse_supported_date(value: str) -> bool:
+    text = _normalize_text(value)
+    for fmt in (
+        "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y",
+        "%d %B %Y", "%d %b %Y", "%B %d, %Y", "%b %d, %Y",
+        "%B %d %Y", "%b %d %Y", "%Y-%m-%d",
+    ):
+        try:
+            datetime.strptime(text, fmt)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _build_government_deposit_return_policy(jurisdiction: str) -> str:
+    normalized_jurisdiction = _normalize_text(jurisdiction) or "the stated jurisdiction"
+    return (
+        f"Under the rental-law framework commonly followed in India, including the Model Tenancy Act principles "
+        f"reported as requiring return of the security deposit within one month after vacant possession and final reconciliation, "
+        f"the landlord shall return the refundable security deposit within 30 days from the date the tenant hands over vacant and peaceful possession of the premises in {normalized_jurisdiction}. "
+        f"The landlord may deduct only clearly itemised and supportable amounts for unpaid rent, unpaid utility charges contractually payable by the tenant, "
+        f"and documented physical damage beyond ordinary wear and tear. Any deduction shall be shared with the tenant in writing together with available bills, estimates, or computation details, "
+        f"and the undisputed balance shall be released without delay. Normal ageing, minor scuffs, ordinary fading, and routine wear from reasonable residential use shall not be treated as deductible damage. "
+        f"This clause should operate subject to any stricter rule that applies under the governing state or local tenancy law."
+    )
+
+
+def _stamp_asset_path(stamp_amount: str) -> Path:
+    repo_root = Path(__file__).resolve().parents[4]
+    return repo_root / "apps" / "web" / "public" / "stamps" / f"non-judicial-{stamp_amount}.png"
+
+
+def _build_stamp_data_uri(stamp_amount: str) -> str | None:
+    stamp_path = _stamp_asset_path(stamp_amount)
+    if not stamp_path.exists():
+        return None
+    encoded = base64.b64encode(stamp_path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def _validate_rental_fields_basic(params: dict) -> list[str]:
+    errors: list[str] = []
+
+    required_name_fields = ("landlord_name", "tenant_name")
+    for field in required_name_fields:
+        value = _normalize_text(params.get(field))
+        if not NAME_RE.fullmatch(value) or value.isdigit():
+            errors.append(f"{field.replace('_', ' ').title()} must look like a real person name.")
+
+    for field in ("landlord_adhar_no", "tenant_adhar_no"):
+        value = _normalize_aadhaar(params.get(field, ""))
+        if not AADHAAR_RE.fullmatch(value):
+            errors.append(f"{field.replace('_', ' ').title()} must be a 12-digit Aadhaar number.")
+
+    for field in ("landlord_address", "tenant_address", "property_address"):
+        value = _normalize_text(params.get(field))
+        if len(value) < 8:
+            errors.append(f"{field.replace('_', ' ').title()} is too short for a legal agreement.")
+        elif _looks_like_gibberish(value):
+            errors.append(f"{field.replace('_', ' ').title()} does not look like a usable address.")
+
+    state = _normalize_text(params.get("state")).lower()
+    if state and state not in INDIAN_STATES_AND_UTS:
+        errors.append("State must be a valid Indian state or union territory.")
+
+    if str(params.get("stamp_amount", "")).strip() not in {"10", "20", "50", "100"}:
+        errors.append("Stamp Amount must be one of Rs.10, Rs.20, Rs.50, or Rs.100.")
+
+    for field in ("monthly_rent", "security_deposit", "rent_due_date", "number_of_bedrooms", "number_of_bathrooms", "notice_required_to_terminate"):
+        value = _normalize_text(params.get(field))
+        if value and not value.isdigit():
+            errors.append(f"{field.replace('_', ' ').title()} must be numeric.")
+
+    if _normalize_text(params.get("tenant_name")).isdigit():
+        errors.append("Tenant Full Name cannot be only numbers.")
+
+    for field in ("lease_start_date", "lease_end_date", "agreement_date"):
+        value = _normalize_text(params.get(field))
+        if value and not _parse_supported_date(value):
+            errors.append(f"{field.replace('_', ' ').title()} must be a real date.")
+
+    return errors
+
+
+async def _validate_rental_fields_with_llm(params: dict) -> list[str]:
+    if not settings.gemini_api_key:
+        return []
+
+    client = _get_genai_client()
+    review_fields = {
+        key: params.get(key)
+        for key in (
+            "landlord_name", "landlord_address", "landlord_adhar_no",
+            "tenant_name", "tenant_address", "tenant_adhar_no",
+            "property_address", "state", "jurisdiction",
+        )
+    }
+    prompt = f"""You are validating a rental-agreement intake form for India.
+Review these fields and detect user inputs that are fake, incomplete, numeric-only where a name is expected, or unsuitable for a legal agreement.
+
+Return valid JSON:
+{{
+  "errors": ["..."]
+}}
+
+Only report concrete validation problems. If a field is acceptable, do not mention it.
+Fields:
+{json.dumps(review_fields, ensure_ascii=True)}"""
+
+    response = await client.aio.models.generate_content(
+        model=settings.gemini_lite_model,
+        contents=prompt,
+    )
+    raw = _strip_json_fences(response.text)
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+    llm_errors = parsed.get("errors", [])
+    if not isinstance(llm_errors, list):
+        return []
+    return [_normalize_text(item) for item in llm_errors if _normalize_text(item)]
+
+
+async def validate_document_params(template_id: str, params: dict) -> dict:
+    cleaned = {key: _normalize_text(value) for key, value in params.items()}
+
+    if template_id != "rental_agreement":
+        return cleaned
+
+    for field in ("landlord_adhar_no", "tenant_adhar_no"):
+        if field in cleaned:
+            cleaned[field] = _normalize_aadhaar(cleaned[field])
+
+    errors = _validate_rental_fields_basic(cleaned)
+    llm_errors = await _validate_rental_fields_with_llm(cleaned)
+    for error in llm_errors:
+        if error not in errors:
+            errors.append(error)
+
+    if errors:
+        raise ValueError("Please correct the rental-agreement form before generating:\n- " + "\n- ".join(errors))
+
+    cleaned["government_deposit_return_policy"] = _build_government_deposit_return_policy(
+        cleaned.get("jurisdiction") or cleaned.get("state") or "the stated jurisdiction",
+    )
+    cleaned["stamp_image_data_uri"] = _build_stamp_data_uri(cleaned.get("stamp_amount", ""))
+    return cleaned
+
 # Template metadata — defines required/optional fields per template
 TEMPLATE_REGISTRY: dict[str, dict] = {
     "rental_agreement": {
         "name": "Rental / Lease Agreement",
-        "description": "Standard residential or commercial rental agreement under Indian law.",
+        "description": "Guided Indian rental agreement with stamp-paper style layout, party details, and lease clauses.",
         "required_fields": [
-            "landlord_name", "tenant_name", "property_address",
-            "monthly_rent", "security_deposit", "lease_start_date", "lease_duration_months",
+            "state",
+            "stamp_amount",
+            "landlord_name",
+            "landlord_address",
+            "landlord_adhar_no",
+            "tenant_name",
+            "tenant_address",
+            "tenant_adhar_no",
+            "property_address",
+            "property_type",
+            "number_of_bedrooms",
+            "number_of_bathrooms",
+            "lease_type",
+            "lease_start_date",
+            "monthly_rent",
+            "rent_due_date",
+            "security_deposit",
+            "electricity_paid_by",
+            "water_paid_by",
+            "renewal_option_allowed",
+            "notice_required_to_terminate",
+            "agreement_date",
+            "jurisdiction",
+            "agreement_language",
+            "landlord_signature",
         ],
         "optional_fields": [
-            "landlord_address", "tenant_address", "purpose",
-            "maintenance_charges", "notice_period_days", "escalation_percent",
-            "furnishing_details", "restrictions",
+            "document_format",
+            "reference_doc_label",
+            "lease_end_date",
+            "lease_duration_months",
+            "minimum_number_of_occupants",
+            "subletting_allowed",
+            "subletting_terms",
+            "guest_policy_description",
+            "alterations_allowed",
+            "alteration_approval_process",
+            "painting_allowed",
+            "nails_and_holes_policy",
+            "renters_insurance_required",
+            "minimum_coverage_amount",
+            "landlord_insurance_policy_details",
+            "early_termination_fee",
+            "early_termination_penalty_description",
+            "notice_required_for_renewal",
+            "auto_renewal_terms",
+            "smoking_allowed",
+            "drug_policy_description",
+            "criminal_activity_policy",
+            "legal_use_of_premises_policy",
+            "assignment_transfer_policy",
+            "move_out_condition_requirements",
+            "cleaning_deposit_required",
+            "cleaning_deposit_amount",
+            "document_version_number",
+            "witness_signature",
         ],
     },
     "nda": {
@@ -129,6 +363,13 @@ def generate_draft(template_id: str, params: dict, ai_enhance: bool = False) -> 
     except TemplateNotFound:
         raise ValueError(f"Template file not found: {template_id}.md")
 
+    if template_id == "rental_agreement":
+        params = {
+            **params,
+            "government_deposit_return_policy": params.get("government_deposit_return_policy")
+            or _build_government_deposit_return_policy(params.get("jurisdiction") or params.get("state") or ""),
+        }
+
     return template.render(**params)
 
 
@@ -147,6 +388,7 @@ Review it and enhance it by:
 3. Adding relevant Indian legal references where appropriate
 
 Return the COMPLETE enhanced document in markdown format. Keep all existing content, only add/improve.
+IMPORTANT: DO NOT use markdown tables. Present any structured data or signature blocks using plain rich text structuring (like headings, lists, or line breaks).
 
 Draft:
 {base}"""
@@ -233,6 +475,7 @@ Requirements:
 - Format in clean markdown with proper headings
 - Include signature blocks at the end
 - Reference applicable Indian laws where relevant
+- IMPORTANT: DO NOT use markdown tables for anything (including signature blocks). Present everything as structured rich text using lists, indents, or paragraphs.
 
 Generate the COMPLETE agreement."""
 

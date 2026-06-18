@@ -9,6 +9,7 @@ from app.core.jwt_auth import JWTPayload, get_jwt_payload_optional
 from app.core.rate_limit import RateLimit
 from app.db.session import async_session_factory
 from app.schemas.document import (
+    DraftChatContentRequest,
     DraftChatListResponse,
     DraftChatMessageInfo,
     DraftChatMessageRequest,
@@ -17,8 +18,12 @@ from app.schemas.document import (
     DraftChatSessionDetail,
     DraftChatSessionSummary,
     DraftChatStartRequest,
+    DraftChatShareRequest,
+    DraftChatShareResponse,
 )
 from app.services import draft_chat_service
+from app.services.email_service import send_document_email
+from app.services.slack_service import send_slack_notification
 
 router = APIRouter()
 
@@ -124,6 +129,29 @@ async def refine_document(session_id: str, req: DraftChatRefineRequest):
         )
 
 
+@router.post("/{session_id}/content", response_model=DraftChatResponse)
+async def save_document_content(session_id: str, req: DraftChatContentRequest):
+    """Persist the latest edited document content for a draft session."""
+    async with async_session_factory() as session:
+        draft = await draft_chat_service.get_session(session, session_id)
+        if not draft:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        draft = await draft_chat_service.save_generated_content(
+            session, draft, req.content,
+        )
+
+        return DraftChatResponse(
+            session_id=draft.id,
+            assistant_message="Document saved.",
+            phase=draft.phase,
+            template_id=draft.template_id,
+            collected_fields=draft.collected_fields or {},
+            missing_fields=draft.missing_fields or [],
+            generated_content=draft.generated_content,
+        )
+
+
 @router.get("/{session_id}", response_model=DraftChatSessionDetail)
 async def get_draft_session(session_id: str):
     """Get draft chat session with messages."""
@@ -178,4 +206,64 @@ async def list_draft_sessions(
                 )
                 for s in sessions
             ]
+        )
+
+
+@router.delete("/{session_id}", status_code=200)
+async def delete_draft_session(
+    session_id: str,
+    jwt: Optional[JWTPayload] = Depends(get_jwt_payload_optional),
+):
+    """Delete a draft chat session."""
+    async with async_session_factory() as session:
+        # Optionally, you could enforce that only the owner can delete, 
+        # but for now we just delete if it exists
+        success = await draft_chat_service.delete_session(session, session_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {"message": "Session deleted successfully"}
+
+
+@router.post("/{session_id}/share", response_model=DraftChatShareResponse, status_code=200)
+async def share_draft_session(
+    session_id: str,
+    req: DraftChatShareRequest,
+    jwt: Optional[JWTPayload] = Depends(get_jwt_payload_optional),
+):
+    """Share a draft document via Email and notify Slack."""
+    async with async_session_factory() as session:
+        draft = await draft_chat_service.get_session(session, session_id)
+        if not draft:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if not draft.generated_content:
+            raise HTTPException(status_code=400, detail="Document not generated yet.")
+
+        sender_name = "LexHelm User"
+        sender_email = jwt.email if jwt and hasattr(jwt, "email") else "user@lexhelm.com"
+
+        # 1. Send Email
+        try:
+            send_document_email(
+                to=[req.recipient_email],
+                cc=[],
+                subject=f"Legal Document shared with you by {sender_name}",
+                document_html=draft.generated_content,
+                document_title=draft.document_type or "Shared Document",
+                sender_name=sender_name,
+                sender_email=sender_email,
+                note=req.message,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")
+
+        # 2. Notify Slack
+        slack_msg = f"*{sender_name}* shared a document ({draft.document_type}) with *{req.recipient_name}* ({req.recipient_email})."
+        if req.message:
+            slack_msg += f"\n> {req.message}"
+            
+        await send_slack_notification(slack_msg)
+
+        return DraftChatShareResponse(
+            status="success",
+            message="Document shared via Email and Slack successfully."
         )

@@ -20,4 +20,5 @@ api_router.include_router(beta.router, prefix="/beta", tags=["beta"])
 api_router.include_router(consultations.router, prefix="/consultations", tags=["consultations"])
 api_router.include_router(email.router, prefix="/email", tags=["email"])
 
+
 __all__ = ["api_router"]

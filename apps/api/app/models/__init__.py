@@ -14,6 +14,7 @@ from app.models.doc_sessions import DocSession, DocMessage
 from app.models.draft_sessions import DraftSession, DraftMessage
 from app.models.beta import BetaRequest, MetricEvent
 from app.models.consultation import ConsultationRequest
+from app.models.whatsapp_document_session import WhatsAppDocumentSession, SessionStatus
 
 __all__ = [
     "Base", "Org", "OrgMember", "RoleEnum", "User",
@@ -23,4 +24,5 @@ __all__ = [
     "DocSession", "DocMessage",
     "DraftSession", "DraftMessage",
     "BetaRequest", "MetricEvent", "ConsultationRequest",
+    "WhatsAppDocumentSession", "SessionStatus",
 ]

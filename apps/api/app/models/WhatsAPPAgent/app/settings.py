@@ -30,12 +30,22 @@ def _parse_bool(value: str, default: bool = False) -> bool:
     return raw in {"1", "true", "yes", "y", "on"}
 
 
+def _normalize_gemini_model_name(value: str) -> str:
+    model = (value or "").strip()
+    if not model:
+        return model
+    if model.startswith("models/") or model.startswith("tunedModels/"):
+        return model
+    return f"models/{model}"
+
+
 @dataclass(frozen=True)
 class Settings:
     target_company_raw: str
     company_key: str
     whatsapp_access_token: str
     whatsapp_phone_number_id: str
+    whatsapp_graph_api_version: str
     gemini_api_key: str
     gemini_model: str
     vectrabiz_root: Path
@@ -61,8 +71,9 @@ def load_settings(env_path: Path | None = None) -> Settings:
 
     whatsapp_access_token = _require_env("WHATSAPP_ACCESS_TOKEN")
     whatsapp_phone_number_id = _require_env("WHATSAPP_PHONE_NUMBER_ID")
+    whatsapp_graph_api_version = (os.getenv("WHATSAPP_GRAPH_API_VERSION") or "v25.0").strip()
     gemini_api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
-    gemini_model = (os.getenv("GEMINI_MODEL") or "").strip()
+    gemini_model = _normalize_gemini_model_name((os.getenv("GEMINI_MODEL") or "").strip())
 
     vectrabiz_root = Path(_require_env("VECTRABIZ_ROOT")).expanduser().resolve()
     if not vectrabiz_root.exists():
@@ -114,6 +125,7 @@ def load_settings(env_path: Path | None = None) -> Settings:
         company_key=company_key,
         whatsapp_access_token=whatsapp_access_token,
         whatsapp_phone_number_id=whatsapp_phone_number_id,
+        whatsapp_graph_api_version=whatsapp_graph_api_version,
         gemini_api_key=gemini_api_key,
         gemini_model=gemini_model,
         vectrabiz_root=vectrabiz_root,
@@ -127,4 +139,3 @@ def load_settings(env_path: Path | None = None) -> Settings:
         client_config=matched_client,
         clients=clients,
     )
-

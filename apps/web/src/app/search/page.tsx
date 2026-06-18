@@ -1,279 +1,256 @@
 "use client";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { askLegalSearch, type SearchChatResponse } from "@/lib/api";
 import {
-  Search, ExternalLink, ChevronLeft, ChevronRight, Scale, Sparkles,
-  Gavel, BookOpen, Landmark, Shield, Users, FileSearch,
+  ArrowRight,
+  Bot,
+  Landmark,
+  MessageSquare,
+  Scale,
+  Search,
+  Sparkles,
+  User,
 } from "lucide-react";
-import { searchCases, type SearchResult, type SearchResponse } from "@/lib/api";
-import { Linkify } from "@/lib/linkify";
 
 const EXAMPLE_QUERIES = [
-  { label: "Employee termination rules", query: "employee termination notice period India", icon: Shield, color: "text-blue-500", bg: "bg-blue-500/10" },
-  { label: "Tenant eviction rights", query: "tenant eviction rights India", icon: Gavel, color: "text-rose-500", bg: "bg-rose-500/10" },
-  { label: "Startup investor agreements", query: "startup shareholder agreement rights India", icon: BookOpen, color: "text-amber-500", bg: "bg-amber-500/10" },
-  { label: "Property dispute resolution", query: "property dispute resolution civil court India", icon: Users, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-  { label: "Cheque bounce 138 NI Act", query: "dishonour cheque section 138 negotiable instruments", icon: FileSearch, color: "text-violet-500", bg: "bg-violet-500/10" },
-  { label: "Right to privacy", query: "right to privacy fundamental right", icon: Landmark, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+  "What are a tenant's eviction rights in India?",
+  "Can an employer terminate without notice in India?",
+  "What does Section 138 of the NI Act cover?",
+  "What rights does a startup founder keep after investor entry?",
 ];
 
-const VALUE_PROPS = [
-  "Search across 100M+ Indian legal documents",
-  "Supreme Court, High Courts & Tribunals",
-  "Statutes, judgments & case law",
-];
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  sources?: SearchChatResponse["sources"];
+}
 
 export default function SearchPage() {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<SearchResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const messageIdRef = useRef(0);
+  const autoPromptHandledRef = useRef(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content:
+        "Ask a legal question and I’ll search Indian case-law results, then turn those results into a plain-English answer for you.",
+    },
+  ]);
 
-  const doSearch = async (q?: string, p = 1) => {
-    const searchQuery = q || query;
-    if (!searchQuery.trim()) return;
-    if (q) setQuery(q);
+  const submitQuery = useCallback(async (nextQuery?: string) => {
+    const value = (nextQuery ?? query).trim();
+    if (!value || loading) return;
+    const nextId = () => {
+      messageIdRef.current += 1;
+      return messageIdRef.current;
+    };
+
+    const userMessage: ChatMessage = {
+      id: `user-${nextId()}`,
+      role: "user",
+      content: value,
+    };
+
+    setMessages((current) => [...current, userMessage]);
     setLoading(true);
-    setError(null);
+    setQuery("");
+
     try {
-      const r = await searchCases(searchQuery, p);
-      setResult(r);
-      setPage(p);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Search failed");
+      const response = await askLegalSearch(value);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-${nextId()}`,
+          role: "assistant",
+          content: response.answer,
+          sources: response.sources,
+        },
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Legal search failed";
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-error-${nextId()}`,
+          role: "assistant",
+          content: `I couldn’t complete that legal search just now. ${message}`,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
+  }, [loading, query]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await submitQuery();
   };
 
-  const totalPages = result ? Math.ceil(result.total / result.page_size) : 0;
+  useEffect(() => {
+    const prompt = searchParams.get("prompt")?.trim();
+    if (!prompt || autoPromptHandledRef.current) return;
+    autoPromptHandledRef.current = true;
+    const timer = window.setTimeout(() => {
+      void submitQuery(prompt);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [searchParams, submitQuery]);
 
   return (
-    <div className="min-h-full">
-      {/* Header */}
-      <div className="border-b border-border bg-gradient-to-r from-violet-500/5 to-purple-500/5 px-6 py-8 md:px-10">
+    <div className="min-h-full bg-background">
+      <div className="border-b border-border bg-background px-6 py-8 md:px-10">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
+          className="space-y-4"
         >
-          <div className="flex items-center gap-3 mb-1">
-            <div className="h-9 w-9 rounded-lg bg-violet-500/10 flex items-center justify-center">
-              <Search className="h-5 w-5 text-violet-500" />
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <Search className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Legal Search</h1>
-              <p className="text-sm text-muted-foreground">Search 100M+ Indian legal cases, statutes, and judgments powered by IndianKanoon.</p>
+              <h1 className="text-2xl font-bold tracking-tight">Legal Search Chat</h1>
+              <p className="text-sm text-muted-foreground">
+                Search Indian legal results through a chat interface and get an LLM-generated answer with supporting sources.
+              </p>
             </div>
           </div>
 
-          {/* Value props */}
-          <div className="flex flex-wrap gap-4 mt-3 mb-5">
-            {VALUE_PROPS.map((v) => (
-              <div key={v} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <div className="h-1 w-1 rounded-full bg-violet-500" />
-                <span>{v}</span>
-              </div>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="secondary" className="gap-1.5">
+              <Scale className="h-3.5 w-3.5" />
+              Indian case law aware
+            </Badge>
+            <Badge variant="secondary" className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              LLM answer generation
+            </Badge>
+            <Badge variant="secondary" className="gap-1.5">
+              <Landmark className="h-3.5 w-3.5" />
+              Source-backed results
+            </Badge>
           </div>
-
-          <form
-            onSubmit={(e) => { e.preventDefault(); doSearch(); }}
-            className="flex gap-2 max-w-2xl"
-          >
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="e.g., tenant rights under rent control act, Section 138 NI Act..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pl-10 h-11 bg-background/80 backdrop-blur-sm border-border/50 focus:border-primary/50"
-              />
-            </div>
-            <Button type="submit" disabled={loading || !query.trim()} className="h-11 px-6">
-              {loading ? (
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  className="h-4 w-4 rounded-full border-2 border-primary-foreground border-t-transparent"
-                />
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Search
-                </>
-              )}
-            </Button>
-          </form>
         </motion.div>
       </div>
 
-      {/* Results */}
-      <div className="p-6 md:p-10 space-y-4">
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive"
-          >
-            {error}
-          </motion.div>
-        )}
-
-        {loading && (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
+      <div className="grid gap-6 p-6 md:grid-cols-[280px_minmax(0,1fr)] md:px-10 md:py-8">
+        <Card className="h-fit">
+          <CardHeader>
+            <CardTitle className="text-base">Try a question</CardTitle>
+            <CardDescription>
+              Use one of these prompts or ask your own question in plain English.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {EXAMPLE_QUERIES.map((example) => (
+              <button
+                key={example}
+                type="button"
+                onClick={() => void submitQuery(example)}
+                className="flex w-full items-start justify-between gap-3 rounded-xl border border-border bg-background px-3 py-3 text-left text-sm transition-colors hover:border-primary/30 hover:bg-accent"
               >
-                <Skeleton className="h-28 w-full rounded-xl" />
-              </motion.div>
+                <span>{example}</span>
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
             ))}
-          </div>
-        )}
+          </CardContent>
+        </Card>
 
-        {/* Empty state with examples */}
-        {!result && !loading && !error && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-8"
-          >
-            <div className="text-center pt-4">
-              <div className="h-14 w-14 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-4">
-                <Scale className="h-7 w-7 text-violet-500/70" />
-              </div>
-              <h2 className="text-lg font-semibold mb-1">What legal topic do you need to know about?</h2>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Search across Indian case law, statutes, and judgments. Try one of these common searches:
-              </p>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 max-w-4xl mx-auto">
-              {EXAMPLE_QUERIES.map((eq, i) => (
-                <motion.div
-                  key={eq.query}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05, duration: 0.3 }}
+        <div className="space-y-4">
+          <Card className="min-h-[520px]">
+            <CardContent className="space-y-4 p-4 md:p-5">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
                 >
-                  <button
-                    onClick={() => doSearch(eq.query)}
-                    className="w-full text-left group"
+                  <div
+                    className={
+                      message.role === "user"
+                        ? "max-w-3xl rounded-2xl rounded-br-md bg-primary px-4 py-3 text-sm text-primary-foreground"
+                        : "max-w-3xl rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3 text-sm text-foreground"
+                    }
                   >
-                    <Card className="transition-all duration-200 hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5">
-                      <CardContent className="flex items-center gap-3 py-4">
-                        <div className={`h-9 w-9 rounded-lg ${eq.bg} flex items-center justify-center shrink-0 transition-transform group-hover:scale-110`}>
-                          <eq.icon className={`h-4 w-4 ${eq.color}`} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium group-hover:text-primary transition-colors">{eq.label}</p>
-                          <p className="text-xs text-muted-foreground truncate">{eq.query}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground">
-                Tip: You can search in plain English or use specific legal terms and section numbers.
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {result && !loading && (
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={page}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-semibold text-foreground">{result.total.toLocaleString()}</span> results for &ldquo;<span className="font-medium text-foreground">{query}</span>&rdquo; &mdash; page {result.page} of {totalPages}
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                {result.results.map((r, i) => (
-                  <motion.div
-                    key={`${r.doc_id}-${i}`}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03, duration: 0.3 }}
-                  >
-                    <CaseCard result={r} />
-                  </motion.div>
-                ))}
-              </div>
-
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-3 pt-4">
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => doSearch(undefined, page - 1)} className="gap-1">
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
-                  </Button>
-                  <span className="text-sm text-muted-foreground font-medium px-3">
-                    {page} / {totalPages}
-                  </span>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => doSearch(undefined, page + 1)} className="gap-1">
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
+                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em]">
+                      {message.role === "user" ? (
+                        <>
+                          <User className="h-3.5 w-3.5" />
+                          You
+                        </>
+                      ) : (
+                        <>
+                          <Bot className="h-3.5 w-3.5" />
+                          LexHelm
+                        </>
+                      )}
+                    </div>
+                    <p className="whitespace-pre-wrap leading-7">{message.content}</p>
+                    {message.sources && message.sources.length > 0 ? (
+                      <div className="mt-4 space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          Supporting results
+                        </p>
+                        {message.sources.map((source, index) => (
+                          <div key={`${message.id}-${index}`} className="rounded-xl border border-border bg-background px-3 py-3">
+                            <p className="text-sm font-semibold text-foreground">
+                              {source.title || "Untitled result"}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {[source.court, source.date, source.citation].filter(Boolean).join(" • ")}
+                            </p>
+                            {source.headline ? (
+                              <p className="mt-2 text-sm text-muted-foreground">{source.headline}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        )}
+              ))}
+
+              {loading ? (
+                <div className="flex justify-start">
+                  <div className="max-w-sm rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3 text-sm text-foreground">
+                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em]">
+                      <Bot className="h-3.5 w-3.5" />
+                      LexHelm
+                    </div>
+                    <p>Searching and preparing an answer...</p>
+                  </div>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <form onSubmit={handleSubmit} className="flex gap-3">
+            <div className="relative flex-1">
+              <MessageSquare className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Ask about tenant rights, notice periods, cheque bounce, contract issues..."
+                className="h-12 pl-10"
+              />
+            </div>
+            <Button type="submit" disabled={loading || !query.trim()} className="h-12 px-5">
+              {loading ? "Searching..." : "Ask"}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
-  );
-}
-
-function CaseCard({ result }: { result: SearchResult }) {
-  return (
-    <Card className="group transition-all duration-200 hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-3">
-          <CardTitle className="text-base font-medium leading-snug group-hover:text-primary transition-colors">
-            <Linkify text={result.title} />
-          </CardTitle>
-          {result.url && (
-            <a href={result.url} target="_blank" rel="noopener noreferrer"
-              className="shrink-0 h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all">
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {result.headline && (
-          <p className="text-sm text-muted-foreground line-clamp-2"
-            dangerouslySetInnerHTML={{ __html: result.headline }} />
-        )}
-        <div className="flex gap-2 flex-wrap">
-          {result.court && <Badge variant="secondary" className="text-xs font-medium">{result.court}</Badge>}
-          {result.date && <Badge variant="outline" className="text-xs">{result.date}</Badge>}
-          {result.citation && <Badge variant="outline" className="text-xs">{result.citation}</Badge>}
-          <Badge variant="outline" className="text-xs font-mono text-muted-foreground">#{result.doc_id}</Badge>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

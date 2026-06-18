@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import select
@@ -21,13 +22,44 @@ from app.services.document_service import (
 
 logger = logging.getLogger(__name__)
 
+_RELATIVE_DATE_VALUES = {
+    "today", "tomorrow", "next week", "next month",
+    "immediately", "asap", "right away",
+}
+
+
+def _parse_supported_date(value: str) -> Optional[datetime]:
+    text = value.strip()
+    for fmt in (
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%d/%m/%y",
+        "%d-%m-%y",
+        "%d %B %Y",
+        "%d %b %Y",
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%B %d %Y",
+        "%b %d %Y",
+        "%B %Y",
+        "%b %Y",
+    ):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
+
 
 # ── Layer 1: Context-Aware Extraction (zero latency) ────────────
 
 
-def _looks_like_multi_answer(message: str) -> bool:
+def _looks_like_multi_answer(message: str, field_name: str | None = None) -> bool:
     """Detect if a message contains multiple answers (e.g., 'tomorrow and software consultation')."""
     lower = message.lower().strip()
+    # Some fields naturally contain commas or multiple words.
+    if field_name in _ADDRESS_FIELDS | _DATE_FIELDS | _LONG_TEXT_FIELDS:
+        return False
     # Comma-separated or "and"-joined parts with distinct concepts
     if re.search(r"\band\b", lower) and len(lower.split()) > 3:
         return True
@@ -49,7 +81,7 @@ def _extract_with_context(
 
     # If message looks like multiple answers, skip context extraction
     # and let the AI layer handle splitting them properly
-    if _looks_like_multi_answer(message):
+    if _looks_like_multi_answer(message, last_asked_field):
         return {}
 
     lower = message.lower().strip()
@@ -62,16 +94,12 @@ def _extract_with_context(
     }
     if last_asked_field in date_fields:
         # Relative dates
-        relative_dates = {
-            "today", "tomorrow", "next week", "next month",
-            "immediately", "asap", "right away",
-        }
-        if lower in relative_dates:
+        if lower in _RELATIVE_DATE_VALUES:
             return {last_asked_field: message.strip()}
 
         # Structured date formats
         date_patterns = [
-            r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+            r"(\d+[/-]\d+[/-]\d+)",
             r"(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})",
             r"((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2},?\s+\d{4})",
             r"((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4})",
@@ -79,7 +107,9 @@ def _extract_with_context(
         for pat in date_patterns:
             m = re.search(pat, lower, re.IGNORECASE)
             if m:
-                return {last_asked_field: m.group(1).strip()}
+                candidate = m.group(1).strip()
+                if _validate_field_value(last_asked_field, candidate):
+                    return {last_asked_field: candidate}
 
     # Numeric fields
     numeric_fields = {
@@ -101,16 +131,44 @@ def _extract_with_context(
                 num *= 1_000_000
             return {last_asked_field: str(int(num)) if num == int(num) else str(num)}
 
-    # Text fields: only for genuinely short single-value answers
     text = message.strip()
     text_len = len(text)
+    if last_asked_field in _NAME_FIELDS:
+        if (
+            text_len >= 2
+            and text_len <= 80
+            and not text.endswith("?")
+            and _is_real_name(text)
+        ):
+            normalized_name = " ".join(part.capitalize() for part in text.split())
+            return {last_asked_field: normalized_name}
+
+    if last_asked_field in _ADDRESS_FIELDS:
+        normalized_address = re.sub(r"\s+", " ", text).strip(" ,")
+        if _validate_field_value(last_asked_field, normalized_address):
+            return {last_asked_field: normalized_address}
+
+    # Long free-text fields can accept a sentence or short phrase.
+    if last_asked_field in _LONG_TEXT_FIELDS and text_len >= 4 and not text.endswith("?"):
+        if _validate_field_value(last_asked_field, text):
+            return {last_asked_field: text}
+
+    # Generic short-text fallback only for fields that are not strongly typed.
+    is_untyped_field = (
+        last_asked_field not in _NAME_FIELDS
+        and last_asked_field not in _ADDRESS_FIELDS
+        and last_asked_field not in _DATE_FIELDS
+        and last_asked_field not in _NUMERIC_FIELDS
+    )
     if (
-        text_len > 1
+        is_untyped_field
+        and text_len > 1
         and text_len <= 100
         and not text.endswith("?")
-        and text.count(" ") <= 6  # short phrases only
+        and text.count(" ") <= 6
     ):
-        return {last_asked_field: text}
+        if _validate_field_value(last_asked_field, text):
+            return {last_asked_field: text}
 
     return result
 
@@ -133,9 +191,114 @@ _GENERIC_NAMES = {
 }
 
 
-def _is_real_name(name: str) -> bool:
+def _is_real_name(name: str):
     """Check if a name is a real proper name, not a generic placeholder."""
-    return name.lower().strip() not in _GENERIC_NAMES and len(name.strip()) > 1
+    normalized = re.sub(r"\s+", " ", name).strip()
+    if len(normalized) <= 1 or normalized.lower() in _GENERIC_NAMES:
+        return False
+    if not re.search(r"[A-Za-z]", normalized):
+        return False
+    if re.fullmatch(r"[\d\s.,+-]+", normalized):
+        return False
+    return True
+
+
+_NAME_FIELDS = {
+    "landlord_name", "tenant_name", "disclosing_party", "receiving_party",
+    "service_provider", "client_name", "principal_name", "agent_name",
+    "sender_name", "recipient_name",
+}
+_ADDRESS_FIELDS = {
+    "property_address", "landlord_address", "tenant_address",
+    "disclosing_party_address", "receiving_party_address",
+    "provider_address", "client_address", "principal_address", "agent_address",
+    "sender_address", "recipient_address",
+}
+_NUMERIC_FIELDS = {
+    "monthly_rent", "security_deposit", "maintenance_charges",
+    "notice_period_days", "escalation_percent", "lease_duration_months",
+    "compensation", "duration_years", "reply_deadline_days",
+    "termination_notice_days",
+}
+_DATE_FIELDS = {
+    "lease_start_date", "effective_date", "start_date", "end_date",
+    "notice_date", "expiry_date",
+}
+_LONG_TEXT_FIELDS = {
+    "purpose", "furnishing_details", "restrictions", "services_description",
+    "deliverables", "powers_granted", "scope_limitations", "subject",
+    "facts", "demand", "legal_provisions", "exclusions",
+}
+
+
+def _validate_field_value(field_name: str, value: object):
+    """Check whether an extracted value is plausible for the target field."""
+    if value is None:
+        return False
+
+    text = str(value).strip()
+    if not text:
+        return False
+
+    if field_name in _NAME_FIELDS:
+        return _is_real_name(text) and len(text.split()) <= 8
+
+    if field_name in _ADDRESS_FIELDS:
+        words = text.split()
+        return len(text) >= 8 and len(words) >= 2
+
+    if field_name in _NUMERIC_FIELDS:
+        if not re.fullmatch(r"\d+(?:\.\d+)?", text):
+            return False
+        number = float(text)
+        if field_name.endswith("_days"):
+            return 1 <= number <= 365
+        if field_name == "lease_duration_months":
+            return 1 <= number <= 600
+        if field_name == "duration_years":
+            return 1 <= number <= 100
+        if field_name == "escalation_percent":
+            return 0 <= number <= 100
+        return number >= 0
+
+    if field_name in _DATE_FIELDS:
+        lower = text.lower()
+        if lower in _RELATIVE_DATE_VALUES:
+            return True
+        return _parse_supported_date(text) is not None
+
+    if field_name in _LONG_TEXT_FIELDS:
+        return len(text) >= 4
+
+    return len(text) >= 2
+
+
+def _filter_extracted_fields(extracted: dict) -> dict:
+    """Drop extracted values that do not match the expected field shape."""
+    return {
+        key: value
+        for key, value in extracted.items()
+        if _validate_field_value(key, value)
+    }
+
+
+def _build_retry_prompt(field_name: str | None) -> str:
+    """Ask the user to answer the current missing field more directly."""
+    if not field_name:
+        return "I still need a bit more detail before I can continue. Could you answer the last question more directly?"
+
+    prompts = {
+        "landlord_name": "I need the landlord's full name. Please reply with just the landlord name.",
+        "tenant_name": "I need the tenant's full name. Please reply with just the tenant name.",
+        "property_address": "I need the full rental property address. Please share the complete address.",
+        "landlord_address": "I need the landlord's native address as per Aadhaar card. Please share the complete address.",
+        "tenant_address": "I need the tenant's native address as per Aadhaar card. Please share the complete address.",
+        "monthly_rent": "I need the monthly rent amount. Please reply with only the amount, for example 25000.",
+        "security_deposit": "I need the security deposit amount. Please reply with only the amount.",
+        "lease_start_date": "I need the lease start date. Please reply with a real calendar date like 15/06/2026 or 15 June 2026.",
+        "lease_duration_months": "I need the lease duration. Please reply with the number of months, for example 11.",
+    }
+    return prompts.get(field_name, f"I still need the {_field_label(field_name)}. Please reply with just that answer.")
 
 
 def _extract_with_rules(message: str, template_id: str | None) -> dict:
@@ -250,7 +413,7 @@ def _extract_with_rules(message: str, template_id: str | None) -> dict:
             "notice": r"(?:dated?|on)",
         }
         kw = kw_alts.get(keyword, keyword)
-        date_pat = r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}\s+\w+\s+\d{4}|\w+\s+\d{4})"
+        date_pat = r"(\d+[/-]\d+[/-]\d+|\d{1,2}\s+\w+\s+\d{4}|\w+\s+\d{4})"
         m = re.search(kw + r"\s+" + date_pat, message, re.I)
         if m:
             result.setdefault(df, m.group(1).strip())
@@ -324,7 +487,7 @@ Example: {{"field_name": "value", "other_field": null}}"""
             if k in name_fields and not _is_real_name(str(v)):
                 continue
             result[k] = v
-        return result
+        return _filter_extracted_fields(result)
     except Exception as e:
         logger.warning(f"[DraftChat] AI extraction failed: {e}")
         return {}
@@ -383,7 +546,12 @@ No explanation, no quotes around the answer."""
 
 def _field_label(field_key: str) -> str:
     """Convert field key to human-readable label."""
-    return field_key.replace("_", " ").title()
+    custom_labels = {
+        "landlord_address": "Landlord Native Address (Aadhaar Card)",
+        "tenant_address": "Tenant Native Address (Aadhaar Card)",
+        "lease_start_date": "Lease Start Date",
+    }
+    return custom_labels.get(field_key, field_key.replace("_", " ").title())
 
 
 async def _generate_collection_response(
@@ -496,6 +664,37 @@ async def create_session(
     return draft, reply
 
 
+async def create_generated_session(
+    session: AsyncSession,
+    template_id: str,
+    collected_fields: dict,
+    generated_content: str,
+    org_id: str | None = None,
+    user_id: str | None = None,
+) -> DraftSession:
+    draft = DraftSession(
+        template_id=template_id,
+        phase="done",
+        collected_fields=collected_fields or {},
+        missing_fields=[],
+        generated_content=generated_content,
+        status="completed",
+        org_id=org_id,
+        user_id=user_id,
+    )
+    session.add(draft)
+
+    assistant_msg = DraftMessage(
+        session=draft,
+        role="assistant",
+        content="Your document has been generated and saved.",
+    )
+    session.add(assistant_msg)
+    await session.commit()
+    await session.refresh(draft)
+    return draft
+
+
 async def get_session(db: AsyncSession, session_id: str) -> DraftSession | None:
     result = await db.execute(
         select(DraftSession)
@@ -520,6 +719,19 @@ async def list_sessions(
         stmt.order_by(DraftSession.created_at.desc()).limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def save_generated_content(
+    db: AsyncSession,
+    draft: DraftSession,
+    content: str,
+) -> DraftSession:
+    draft.generated_content = content
+    draft.phase = "done"
+    draft.status = "completed"
+    await db.commit()
+    await db.refresh(draft)
+    return draft
 
 
 # ── Core Turn Processing ─────────────────────────────────────────
@@ -616,6 +828,8 @@ async def process_turn(
                 if k not in extracted:
                     extracted[k] = v
 
+    extracted = _filter_extracted_fields(extracted)
+
     # Merge into collected
     if extracted:
         collected.update(extracted)
@@ -631,7 +845,14 @@ async def process_turn(
     draft.missing_fields = missing_required
 
     # ── Decide next phase ──
-    if not missing_required and draft.template_id:
+    if (
+        draft.last_asked_field
+        and draft.last_asked_field not in extracted
+        and draft.last_asked_field not in collected
+    ):
+        draft.phase = "collect"
+        reply = _build_retry_prompt(draft.last_asked_field)
+    elif not missing_required and draft.template_id:
         # All required fields collected — move to confirm
         draft.phase = "confirm"
         reply = _build_confirmation_summary(draft.template_id, collected)
@@ -718,9 +939,12 @@ Current document:
 
 User instruction: "{user_message}"
 
-Apply the user's requested changes to the document. Return the FULL updated document in markdown format.
-Keep all existing content that wasn't asked to change. Maintain proper legal document formatting.
-Return ONLY the updated document text, no explanations or preamble."""
+Instructions:
+1. Apply the requested changes logically to the document.
+2. If the user's request is ambiguous, make a reasonable legal interpretation.
+3. Keep the document formal, professional, and compliant with Indian law.
+4. Return ONLY the COMPLETE updated document content in markdown format. No explanations.
+5. IMPORTANT: DO NOT use markdown tables for anything. Use plain rich text structuring (lists, headings, paragraphs) for signature blocks or structured data."""
 
     try:
         response = await client.aio.models.generate_content(
@@ -751,3 +975,14 @@ Return ONLY the updated document text, no explanations or preamble."""
         db.add(assistant_msg)
         await db.commit()
         return current_document
+
+
+async def delete_session(db: AsyncSession, session_id: str) -> bool:
+    """Delete a draft chat session and its messages."""
+    draft = await get_session(db, session_id)
+    if not draft:
+        return False
+        
+    await db.delete(draft)
+    await db.commit()
+    return True

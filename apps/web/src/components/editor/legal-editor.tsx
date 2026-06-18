@@ -11,7 +11,7 @@ import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import { TextStyle } from "@tiptap/extension-text-style";
 import FontFamily from "@tiptap/extension-font-family";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { marked } from "marked";
 
 import { EditorToolbar } from "./editor-toolbar";
@@ -39,6 +39,14 @@ export function LegalEditor({
   editable = true,
   className = "",
 }: LegalEditorProps) {
+  const onChangeRef = useRef(onChange);
+  const onTextChangeRef = useRef(onTextChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onTextChangeRef.current = onTextChange;
+  }, [onChange, onTextChange]);
+
   const isHtml = content.trim().startsWith("<");
   const initialContent = isHtml ? content : plainTextToHtml(content);
 
@@ -71,12 +79,12 @@ export function LegalEditor({
       },
     },
     onCreate: ({ editor: e }) => {
-      onChange?.(e.getHTML());
-      onTextChange?.(e.getText());
+      onChangeRef.current?.(e.getHTML());
+      onTextChangeRef.current?.(e.getText());
     },
     onUpdate: ({ editor: e }) => {
-      onChange?.(e.getHTML());
-      onTextChange?.(e.getText());
+      onChangeRef.current?.(e.getHTML());
+      onTextChangeRef.current?.(e.getText());
     },
   });
 
@@ -87,10 +95,10 @@ export function LegalEditor({
     const currentHtml = editor.getHTML();
     if (newHtml !== currentHtml) {
       editor.commands.setContent(newHtml);
-      onChange?.(editor.getHTML());
-      onTextChange?.(editor.getText());
+      onChangeRef.current?.(editor.getHTML());
+      onTextChangeRef.current?.(editor.getText());
     }
-  }, [content]);
+  }, [content, editor, isHtml]);
 
   useEffect(() => {
     return () => {

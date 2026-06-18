@@ -4,11 +4,8 @@ import {
   Bold, Italic, Underline, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered,
-  Heading1, Heading2, Heading3,
   Undo2, Redo2,
   Minus, Quote, Highlighter,
-  Table as TableIcon, Plus, Trash2,
-  Pilcrow,
 } from "lucide-react";
 
 interface ToolbarProps {
@@ -53,7 +50,7 @@ function ToolbarDivider() {
 }
 
 function FontSelect({ editor }: { editor: Editor }) {
-  const currentFont = editor.getAttributes("textStyle").fontFamily || "Georgia";
+  const currentFont = editor.getAttributes("textStyle").fontFamily || "Inter";
 
   return (
     <select
@@ -74,8 +71,7 @@ function FontSelect({ editor }: { editor: Editor }) {
         backgroundSize: "16px",
       }}
     >
-      <option value="Georgia">Georgia</option>
-      <option value="Times New Roman">Times New Roman</option>
+      <option value="Inter">Inter</option>
       <option value="Arial">Arial</option>
       <option value="Helvetica">Helvetica</option>
       <option value="Courier New">Courier New</option>
@@ -106,7 +102,7 @@ function HeadingDropdown({ editor }: { editor: Editor }) {
           editor
             .chain()
             .focus()
-            .toggleHeading({ level: parseInt(val) as 1 | 2 | 3 | 4 })
+            .setHeading({ level: parseInt(val) as 1 | 2 | 3 | 4 })
             .run();
         }
       }}
@@ -258,44 +254,6 @@ export function EditorToolbar({ editor }: ToolbarProps) {
       >
         <Minus className="h-4 w-4" />
       </ToolbarButton>
-
-      <ToolbarDivider />
-
-      {/* Table */}
-      <ToolbarButton
-        onClick={() =>
-          editor
-            .chain()
-            .focus()
-            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-            .run()
-        }
-        title="Insert table"
-      >
-        <TableIcon className="h-4 w-4" />
-      </ToolbarButton>
-      {editor.isActive("table") && (
-        <>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().addColumnAfter().run()}
-            title="Add column"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().addRowAfter().run()}
-            title="Add row"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().deleteTable().run()}
-            title="Delete table"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </ToolbarButton>
-        </>
-      )}
     </div>
   );
 }

@@ -12,7 +12,9 @@ class WhatsAppClient:
         self.settings = settings
         self.timeout_seconds = timeout_seconds
         self.base_url = (
-            f"https://graph.facebook.com/v22.0/{self.settings.whatsapp_phone_number_id}/messages"
+            "https://graph.facebook.com/"
+            f"{self.settings.whatsapp_graph_api_version}/"
+            f"{self.settings.whatsapp_phone_number_id}/messages"
         )
 
     def send_text(self, to: str, body: str) -> Dict[str, Any]:
@@ -34,4 +36,3 @@ class WhatsAppClient:
         )
         response.raise_for_status()
         return response.json()
-

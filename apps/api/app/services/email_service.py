@@ -1,9 +1,14 @@
-"""Email notifications via Resend."""
+"""Email notifications via Gmail API with Resend fallback."""
 from __future__ import annotations
 
+import base64
+import html
 import logging
+import re
+from email.message import EmailMessage
 from typing import Optional
 
+import requests
 import resend
 
 from app.core import settings
@@ -12,14 +17,158 @@ logger = logging.getLogger(__name__)
 
 ADMIN_NOTIFY_EMAILS = ["durgaprasd165@gmail.com"]
 FRONTEND_URL = settings.frontend_url.rstrip("/")
+GMAIL_TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+def _gmail_configured() -> bool:
+    return bool(
+        settings.gmail_client_id
+        and settings.gmail_client_secret
+        and settings.gmail_refresh_token
+        and settings.gmail_sender_email
+    )
 
 
-def _ensure_client() -> bool:
-    if not settings.resend_api_key:
-        logger.warning("RESEND_API_KEY not set — skipping email")
-        return False
+def _resend_configured() -> bool:
+    return bool(settings.resend_api_key)
+
+
+def _html_to_text(content: str) -> str:
+    text = re.sub(r"<br\s*/?>", "\n", content, flags=re.IGNORECASE)
+    text = re.sub(r"</p\s*>", "\n\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text.strip()
+
+
+def _get_gmail_access_token() -> str:
+    response = requests.post(
+        GMAIL_TOKEN_URL,
+        data={
+            "client_id": settings.gmail_client_id,
+            "client_secret": settings.gmail_client_secret,
+            "refresh_token": settings.gmail_refresh_token,
+            "grant_type": "refresh_token",
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    access_token = payload.get("access_token")
+    if not access_token:
+        raise RuntimeError("Gmail token response did not include an access token.")
+    return access_token
+
+
+def _send_via_gmail(
+    *,
+    to: list[str],
+    cc: list[str] | None,
+    subject: str,
+    html_content: str,
+    from_header: str,
+    reply_to: str | None = None,
+) -> None:
+    access_token = _get_gmail_access_token()
+
+    message = EmailMessage()
+    message["To"] = ", ".join(to)
+    if cc:
+        message["Cc"] = ", ".join(cc)
+    message["Subject"] = subject
+    message["From"] = from_header
+    if reply_to:
+        message["Reply-To"] = reply_to
+
+    message.set_content(_html_to_text(html_content))
+    message.add_alternative(html_content, subtype="html")
+
+    raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
+    gmail_user = settings.gmail_sender_email or "me"
+    response = requests.post(
+        f"https://gmail.googleapis.com/gmail/v1/users/{gmail_user}/messages/send",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"raw": raw_message},
+        timeout=20,
+    )
+    response.raise_for_status()
+
+
+def _send_via_resend(
+    *,
+    to: list[str],
+    cc: list[str] | None,
+    subject: str,
+    html_content: str,
+    from_header: str,
+    reply_to: str | None = None,
+) -> None:
     resend.api_key = settings.resend_api_key
-    return True
+    params: dict = {
+        "from": from_header,
+        "to": to,
+        "subject": subject,
+        "html": html_content,
+    }
+    if cc:
+        params["cc"] = cc
+    if reply_to:
+        params["reply_to"] = reply_to
+    resend.Emails.send(params)
+
+
+def _deliver_email(
+    *,
+    to: list[str],
+    cc: list[str] | None,
+    subject: str,
+    html_content: str,
+    from_header: str,
+    reply_to: str | None = None,
+) -> None:
+    gmail_error: Exception | None = None
+
+    if _gmail_configured():
+        try:
+            _send_via_gmail(
+                to=to,
+                cc=cc,
+                subject=subject,
+                html_content=html_content,
+                from_header=from_header,
+                reply_to=reply_to,
+            )
+            logger.info("Email delivered via Gmail API to %s", to)
+            return
+        except Exception as exc:
+            gmail_error = exc
+            logger.exception("Gmail delivery failed for %s", to)
+
+    if _resend_configured():
+        try:
+            _send_via_resend(
+                to=to,
+                cc=cc,
+                subject=subject,
+                html_content=html_content,
+                from_header=from_header,
+                reply_to=reply_to,
+            )
+            logger.info("Email delivered via Resend to %s", to)
+            return
+        except Exception:
+            logger.exception("Resend delivery failed for %s", to)
+            raise
+
+    if gmail_error:
+        raise RuntimeError(
+            "Gmail delivery failed and no Resend fallback is configured."
+        ) from gmail_error
+    raise RuntimeError(
+        "No email provider configured. Set Gmail API credentials or RESEND_API_KEY."
+    )
 
 
 def send_beta_signup_notification(
@@ -30,9 +179,6 @@ def send_beta_signup_notification(
     referrer: Optional[str] = None,
 ) -> None:
     """Notify admins about a new beta signup."""
-    if not _ensure_client():
-        return
-
     applicant_name = name or email.split("@")[0]
     company_line = f"<p><strong>Company:</strong> {company}</p>" if company else ""
     use_case_line = f"<p><strong>Use case:</strong> {use_case}</p>" if use_case else ""
@@ -58,12 +204,13 @@ def send_beta_signup_notification(
     """
 
     try:
-        resend.Emails.send({
-            "from": f"LexHelm <{settings.resend_from_email}>",
-            "to": ADMIN_NOTIFY_EMAILS,
-            "subject": f"[LexHelm Beta] New signup: {applicant_name} ({email})",
-            "html": html,
-        })
+        _deliver_email(
+            to=ADMIN_NOTIFY_EMAILS,
+            cc=None,
+            subject=f"[LexHelm Beta] New signup: {applicant_name} ({email})",
+            html_content=html,
+            from_header=f"LexHelm <{settings.gmail_sender_email or settings.resend_from_email}>",
+        )
         logger.info("Beta signup notification sent for %s", email)
     except Exception:
         logger.exception("Failed to send beta signup email for %s", email)
@@ -71,9 +218,6 @@ def send_beta_signup_notification(
 
 def send_beta_approved_email(email: str, name: Optional[str] = None) -> None:
     """Notify user that their beta access has been approved."""
-    if not _ensure_client():
-        return
-
     user_name = name or "there"
 
     html = f"""
@@ -103,12 +247,13 @@ def send_beta_approved_email(email: str, name: Optional[str] = None) -> None:
     """
 
     try:
-        resend.Emails.send({
-            "from": f"LexHelm <{settings.resend_from_email}>",
-            "to": [email],
-            "subject": "Your LexHelm beta access is approved!",
-            "html": html,
-        })
+        _deliver_email(
+            to=[email],
+            cc=None,
+            subject="Your LexHelm beta access is approved!",
+            html_content=html,
+            from_header=f"LexHelm <{settings.gmail_sender_email or settings.resend_from_email}>",
+        )
         logger.info("Beta approved email sent to %s", email)
     except Exception:
         logger.exception("Failed to send approval email to %s", email)
@@ -124,15 +269,11 @@ def send_document_email(
     sender_email: str,
     note: Optional[str] = None,
 ) -> None:
-    """Send a legal document to client(s) with the sender CC'd."""
-    if not _ensure_client():
-        return
+    """Send a legal document to client(s) with Gmail delivery when configured."""
 
     note_html = ""
     if note:
-        # Escape HTML in user note
-        import html as html_module
-        escaped_note = html_module.escape(note).replace("\n", "<br>")
+        escaped_note = html.escape(note).replace("\n", "<br>")
         note_html = f"""
         <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
           <p style="margin: 0; font-size: 14px; color: #374151; white-space: pre-wrap;">{escaped_note}</p>
@@ -164,17 +305,14 @@ def send_document_email(
     """
 
     try:
-        params: dict = {
-            "from": f"{sender_name} via LexHelm <{settings.resend_from_email}>",
-            "to": to,
-            "subject": subject,
-            "html": html,
-            "reply_to": sender_email,
-        }
-        if cc:
-            params["cc"] = cc
-
-        resend.Emails.send(params)
+        _deliver_email(
+            to=to,
+            cc=cc,
+            subject=subject,
+            html_content=html,
+            from_header=f"{sender_name} via LexHelm <{settings.gmail_sender_email or settings.resend_from_email}>",
+            reply_to=sender_email,
+        )
         logger.info("Document email sent to %s (cc: %s) by %s", to, cc, sender_email)
     except Exception:
         logger.exception("Failed to send document email to %s", to)
@@ -191,9 +329,6 @@ def send_consultation_notification(
     user_id: Optional[str] = None,
 ) -> None:
     """Notify admins about a new consultation request."""
-    if not _ensure_client():
-        return
-
     # Format consultation type for display
     type_labels = {
         "general": "General Legal Advice",
@@ -260,13 +395,14 @@ def send_consultation_notification(
     """
 
     try:
-        resend.Emails.send({
-            "from": f"LexHelm Consultations <{settings.resend_from_email}>",
-            "to": ADMIN_NOTIFY_EMAILS,
-            "subject": f"[Consultation] {urgency_display}: {subject} — {name}",
-            "html": html,
-            "reply_to": email,
-        })
+        _deliver_email(
+            to=ADMIN_NOTIFY_EMAILS,
+            cc=None,
+            subject=f"[Consultation] {urgency_display}: {subject} — {name}",
+            html_content=html,
+            from_header=f"LexHelm Consultations <{settings.gmail_sender_email or settings.resend_from_email}>",
+            reply_to=email,
+        )
         logger.info("Consultation notification sent for %s (%s)", name, email)
     except Exception:
         logger.exception("Failed to send consultation notification for %s", email)
