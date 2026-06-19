@@ -1,91 +1,114 @@
-# RENTAL / LEASE AGREEMENT
+<div style="font-family:Inter, Arial, sans-serif;color:#000000;background:#F3F5FA;padding:20px;">
+  {% set stamp_value = stamp_amount or "10" %}
+  <div style="margin:0 auto;max-width:900px;border:2px solid #c7cee3;border-radius:20px;background:#FFFFFF;padding:32px 36px;">
+    <div style="text-align:center;margin-bottom:22px;">
+      <div style="display:inline-block;width:100%;max-width:760px;border:1px solid #d7deee;border-radius:18px;padding:14px;background:#FFFFFF;">
+        {% if stamp_image_data_uri %}
+          <img src="{{ stamp_image_data_uri }}" alt="Non-judicial stamp paper Rs.{{ stamp_value }}" style="width:100%;display:block;border-radius:12px;" />
+        {% else %}
+          <div style="padding:30px 16px;border:1px solid #c7cee3;border-radius:12px;background:#F3F5FA;text-align:center;font-size:18px;font-weight:700;">
+            Non-judicial stamp paper Rs.{{ stamp_value }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
 
-This Rental Agreement ("Agreement") is made and executed on this **{{ lease_start_date }}** at **{{ property_address }}**.
+    <p style="margin:0 0 10px;font-size:18px;line-height:1.8;"><strong>Agreement Date:</strong> {{ agreement_date }}</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.8;"><strong>Jurisdiction:</strong> {{ jurisdiction }}</p>
 
-## BETWEEN
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 1: Introduction</h1>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;">
+      This Rental Agreement is made on {{ agreement_date }} between the parties identified below and records the terms on which the landlord agrees to let and the tenant agrees to occupy the premises described in this document.
+    </p>
 
-**LANDLORD:** {{ landlord_name }}
-{% if landlord_address %}Address: {{ landlord_address }}{% endif %}
-(hereinafter referred to as the "Landlord", which expression shall, unless repugnant to the context, include his/her heirs, executors, administrators, and assigns)
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 2: Parties</h2>
+    <p style="margin:0 0 10px;font-size:18px;line-height:1.9;"><strong>Landlord Details:</strong></p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Name:</strong> {{ landlord_name }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Address:</strong> {{ landlord_address }}</p>
+    <p style="margin:0 0 18px;font-size:18px;line-height:1.9;"><strong>Aadhaar Number:</strong> {{ landlord_adhar_no }}</p>
 
-**AND**
+    <p style="margin:0 0 10px;font-size:18px;line-height:1.9;"><strong>Tenant Details:</strong></p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Name:</strong> {{ tenant_name }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Address:</strong> {{ tenant_address }}</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Aadhaar Number:</strong> {{ tenant_adhar_no }}</p>
 
-**TENANT:** {{ tenant_name }}
-{% if tenant_address %}Address: {{ tenant_address }}{% endif %}
-(hereinafter referred to as the "Tenant", which expression shall, unless repugnant to the context, include his/her heirs, executors, administrators, and assigns)
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;">
+      The landlord and the tenant are collectively referred to as the <strong>Parties</strong> in this Agreement.
+    </p>
 
-## RECITALS
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 3: Property Information</h2>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Property Address:</strong></p>
+    <p style="margin:0 0 16px;font-size:18px;line-height:1.9;">{{ property_address }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Property Type:</strong> {{ property_type }}</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;">
+      <strong>Property Features:</strong> Bedrooms: {{ number_of_bedrooms }}. Bathrooms: {{ number_of_bathrooms }}.
+    </p>
 
-WHEREAS the Landlord is the lawful owner of the premises situated at **{{ property_address }}** and is desirous of letting out the said premises to the Tenant{% if purpose %} for the purpose of **{{ purpose }}**{% endif %};
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 4: Lease Term</h2>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Lease Type:</strong> {{ lease_type }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Start Date:</strong> {{ lease_start_date }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>End Date:</strong> {{ lease_end_date or "As stated by the parties or until lawfully terminated" }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Duration:</strong> {{ lease_duration_months or "As per the agreed term" }} month(s)</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Renewal Allowed:</strong> {{ renewal_option_allowed }}</p>
 
-AND WHEREAS the Tenant has agreed to take the said premises on rent on the terms and conditions set out herein.
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 5: Rent &amp; Payment</h2>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Monthly Rent:</strong> Rs. {{ monthly_rent }}</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Due Date:</strong> {{ rent_due_date }} of each month.</p>
 
-## NOW THIS AGREEMENT WITNESSETH AS FOLLOWS:
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 6: Security Deposit</h2>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Security Deposit:</strong> Rs. {{ security_deposit }}</p>
 
-### 1. TERM OF LEASE
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 7: Utility Responsibilities</h2>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Electricity:</strong> Paid by {{ electricity_paid_by }}</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Water:</strong> Paid by {{ water_paid_by }}</p>
 
-The tenancy shall commence on **{{ lease_start_date }}** and shall remain in force for a period of **{{ lease_duration_months }} months**, unless terminated earlier in accordance with the provisions herein.
+    {% if property_type == "Room" %}
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 8: Occupancy Restrictions</h2>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Minimum Occupants:</strong> {{ minimum_number_of_occupants or "Not separately specified by the parties." }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Subletting Allowed:</strong> {{ subletting_allowed or "No" }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Subletting Terms:</strong> {{ subletting_terms or "Subletting is not permitted except with prior written consent of the landlord." }}</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Guest Policy:</strong> {{ guest_policy_description or "Guests may visit only in a manner that does not create nuisance, overcrowding, or unlawful use of the premises." }}</p>
 
-### 2. MONTHLY RENT
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 9: Property Alterations</h2>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Alterations Allowed:</strong> {{ alterations_allowed or "No" }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Approval Process:</strong> {{ alteration_approval_process or "Any alteration requires prior written approval from the landlord." }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Painting Allowed:</strong> {{ painting_allowed or "No" }}</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Policy:</strong> {{ nails_and_holes_policy or "No structural or material damage may be caused while fixing nails, shelves, hooks, paint, or fittings." }}</p>
+    {% endif %}
 
-The Tenant shall pay a monthly rent of **Rs. {{ monthly_rent }}/-** (Rupees {{ monthly_rent }} Only) to the Landlord, payable on or before the 5th day of each calendar month.
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 11: Lease Termination &amp; Renewal</h2>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Termination Notice:</strong> {{ notice_required_to_terminate }} day(s)</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Early Termination Fee:</strong> {{ early_termination_fee and ("Rs. " ~ early_termination_fee) or "Not separately specified." }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Early Termination Penalty:</strong> {{ early_termination_penalty_description or "Any early termination consequences shall follow this Agreement and applicable law." }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Renewal Notice Period:</strong> {{ notice_required_for_renewal or "Not separately specified." }}</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Auto-Renewal:</strong> {{ auto_renewal_terms or "No automatic renewal will apply unless the parties record it in writing." }}</p>
 
-{% if escalation_percent %}
-The rent shall be escalated by **{{ escalation_percent }}%** per annum from the date of commencement.
-{% endif %}
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 12: Security Deposit Return</h2>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;">{{ government_deposit_return_policy }}</p>
 
-{% if maintenance_charges %}
-### 3. MAINTENANCE CHARGES
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Smoking Policy:</strong> {{ smoking_allowed or "No" }}</p>
+    {% if smoking_allowed == "Yes" %}
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 14: Additional Clauses &amp; Policies</h2>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Drug Policy:</strong> {{ drug_policy_description or "Use, storage, or distribution of prohibited substances is not permitted on the premises." }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Criminal Activity Policy:</strong> {{ criminal_activity_policy or "No criminal, illegal, or nuisance-causing activity shall be conducted on the premises." }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Legal Use of Premises:</strong> {{ legal_use_of_premises_policy or "The premises shall be used only for lawful purposes consistent with the permitted tenancy use." }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Assignment/Transfer Policy:</strong> {{ assignment_transfer_policy or "The tenant may not assign, transfer, or part with possession without prior written consent of the landlord." }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Move-Out Requirements:</strong> {{ move_out_condition_requirements or "The tenant shall hand over vacant possession, return keys, settle dues, and leave the premises in reasonably clean condition subject to normal wear and tear." }}</p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Cleaning Deposit Required:</strong> {{ cleaning_deposit_required or "No" }}</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;"><strong>Cleaning Deposit Amount:</strong> {{ cleaning_deposit_amount and ("Rs. " ~ cleaning_deposit_amount) or "Not separately specified." }}</p>
+    {% endif %}
 
-In addition to rent, the Tenant shall pay maintenance charges of **Rs. {{ maintenance_charges }}/-** per month.
-{% endif %}
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Section 15: Signatures</h2>
+    <p style="margin:0 0 14px;font-size:18px;line-height:1.9;"><strong>Landlord Signature Section:</strong></p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;">Landlord Signature: _________________________ Date: __________</p>
+    <p style="margin:0 0 18px;font-size:18px;line-height:1.9;">Landlord Printed Name: {{ landlord_name }}</p>
 
-### {{ "4" if maintenance_charges else "3" }}. SECURITY DEPOSIT
+    <p style="margin:0 0 14px;font-size:18px;line-height:1.9;"><strong>Tenant Signature Section:</strong></p>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;">Tenant Signature: _________________________ Date: __________</p>
+    <p style="margin:0 0 26px;font-size:18px;line-height:1.9;">Tenant Printed Name: {{ tenant_name }}</p>
 
-The Tenant has deposited a sum of **Rs. {{ security_deposit }}/-** (Rupees {{ security_deposit }} Only) as refundable security deposit with the Landlord. This deposit shall be refunded to the Tenant at the time of vacating the premises, after deducting any arrears of rent or charges for damages, if any.
-
-### GENERAL TERMS
-
-1. The Tenant shall use the premises only for {% if purpose %}{{ purpose }}{% else %}residential purposes{% endif %} and shall not use the same for any illegal or immoral purpose.
-2. The Tenant shall not sublet, assign, or transfer the premises or any part thereof to any third party without the prior written consent of the Landlord.
-3. The Tenant shall maintain the premises in good condition and shall be responsible for minor repairs and maintenance.
-4. The Landlord shall be responsible for structural repairs and maintenance of the premises.
-5. Either party may terminate this Agreement by giving **{{ notice_period_days | default("30") }} days** prior written notice to the other party.
-6. The Tenant shall not make any structural alterations to the premises without the prior written consent of the Landlord.
-7. The Tenant shall pay all utility bills (electricity, water, gas) during the tenancy period.
-
-{% if furnishing_details %}
-### FURNISHING
-
-The premises is let out with the following furnishing: {{ furnishing_details }}
-{% endif %}
-
-{% if restrictions %}
-### RESTRICTIONS
-
-{{ restrictions }}
-{% endif %}
-
-### DISPUTE RESOLUTION
-
-Any dispute arising out of this Agreement shall be resolved amicably through mutual discussion. If the dispute cannot be resolved amicably, it shall be referred to arbitration under the Arbitration and Conciliation Act, 1996.
-
-### GOVERNING LAW
-
-This Agreement shall be governed by and construed in accordance with the laws of India.
-
----
-
-**IN WITNESS WHEREOF**, the parties hereto have set their hands on this Agreement on the day, month, and year first above written.
-
-| | |
-|---|---|
-| **LANDLORD** | **TENANT** |
-| Name: {{ landlord_name }} | Name: {{ tenant_name }} |
-| Signature: _________________ | Signature: _________________ |
-| Date: {{ lease_start_date }} | Date: {{ lease_start_date }} |
-
-**WITNESSES:**
-
-1. Name: _________________ Signature: _________________
-2. Name: _________________ Signature: _________________
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Document Metadata</h2>
+    <p style="margin:0 0 6px;font-size:18px;line-height:1.9;"><strong>Language:</strong> {{ agreement_language }}</p>
+    <p style="margin:0;font-size:18px;line-height:1.9;"><strong>Version:</strong> {{ document_version_number or "1.0" }}</p>
+  </div>
+</div>

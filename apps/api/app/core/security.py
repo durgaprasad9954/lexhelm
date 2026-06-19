@@ -54,7 +54,10 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if path in self.exempt_paths or request.method == "OPTIONS":
+        if (
+            request.method == "OPTIONS"
+            or any(path == exempt or path.startswith(f"{exempt}/") for exempt in self.exempt_paths)
+        ):
             return await call_next(request)
 
         expected_token = getattr(request.app.state, "admin_api_token", None)

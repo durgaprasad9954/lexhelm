@@ -9,6 +9,7 @@ from pydantic import BaseModel, EmailStr, Field
 from app.core.jwt_auth import JWTPayload, get_jwt_payload
 from app.core.rate_limit import RateLimit
 from app.services.email_service import send_document_email
+from app.services.slack_service import send_slack_notification
 
 router = APIRouter()
 
@@ -22,6 +23,26 @@ class SendDocumentEmailRequest(BaseModel):
     note: Optional[str] = Field(None, max_length=2000)
     document_html: str = Field(..., min_length=1)
     document_title: str = Field("Document", max_length=200)
+
+
+async def _notify_document_share_slack(
+    *,
+    sender_name: str,
+    sender_email: str,
+    recipients: list[str],
+    subject: str,
+    note: Optional[str],
+) -> None:
+    recipient_list = ", ".join(recipients)
+    message = (
+        f"*{sender_name}* sent a Gmail document share.\n"
+        f"From: `{sender_email}`\n"
+        f"To: `{recipient_list}`\n"
+        f"Subject: {subject}"
+    )
+    if note:
+        message += f"\n> {note}"
+    await send_slack_notification(message)
 
 
 @router.post("/send-document", dependencies=[Depends(_send_limit)])
@@ -53,5 +74,13 @@ async def send_document(
         sender_name=sender_name,
         sender_email=sender_email,
     )
+    background_tasks.add_task(
+        _notify_document_share_slack,
+        sender_name=sender_name,
+        sender_email=sender_email,
+        recipients=list(req.to),
+        subject=req.subject,
+        note=req.note,
+    )
 
-    return {"message": f"Document will be sent to {', '.join(req.to)}"}
+    return {"message": f"Document will be sent via Gmail to {', '.join(req.to)}"}

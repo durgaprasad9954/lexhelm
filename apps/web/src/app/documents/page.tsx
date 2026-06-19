@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,13 +23,15 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  listTemplates, parseContract,
+  generateDocument, listTemplates, parseContract,
   startDraftChat, sendDraftMessage, confirmDraftChat,
   refineDraftDocument, sendDocumentEmail,
-  type Template, type DraftChatResponse,
+  getDraftChatSession, listDraftChatSessions, saveDraftChatContent, deleteDraftChatSession,
+  type Template, type DraftChatResponse, type DraftChatSessionDetail, type DraftChatSessionSummary,
 } from "@/lib/api";
-import { LegalEditor } from "@/components/editor/legal-editor";
+import { LegalEditor, plainTextToHtml } from "@/components/editor/legal-editor";
 import { useSidebar } from "@/lib/sidebar-context";
+import { RentalAgreementIntake, type RentalAgreementFormValues } from "@/components/documents/rental-agreement-intake";
 
 interface ChatMsg {
   id: string;
@@ -61,36 +64,78 @@ const SUGGESTIONS = [
 
 function getInitialDraftRoute() {
   if (typeof window === "undefined") {
-    return { template: undefined, prompt: undefined };
+    return { template: undefined, prompt: undefined, tab: "ai-draft" };
   }
 
   const params = new URLSearchParams(window.location.search);
   const template = params.get("template") || undefined;
   const feature = params.get("feature");
   const prompt = params.get("prompt") || undefined;
+  const tab = params.get("tab") || "ai-draft";
+  const resume = params.get("resume");
 
   return {
     template,
     prompt: feature === "instant-lease"
       ? "I want to start the instant lease agreement workflow. Please create a rental or lease agreement and ask me for the required details."
       : prompt,
+    tab,
+    resumeSessionId: resume,
   };
 }
 
 export default function DocumentsPage() {
+  const searchParams = useSearchParams();
   const [initialRoute] = useState(getInitialDraftRoute);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("ai-draft");
+  const [savedDocumentsLoading, setSavedDocumentsLoading] = useState(true);
+  const [savedDocuments, setSavedDocuments] = useState<DraftChatSessionSummary[]>([]);
+  const [activeTab, setActiveTab] = useState(initialRoute.tab);
   const [preselectedTemplate, setPreselectedTemplate] = useState<string | undefined>(initialRoute.template);
   const [initialDraftPrompt, setInitialDraftPrompt] = useState<string | undefined>(initialRoute.prompt);
+  const [resumeSessionId, setResumeSessionId] = useState<string | null>(initialRoute.resumeSessionId ?? null);
   const [editorMode, setEditorMode] = useState(false);
+  const searchTab = searchParams.get("tab");
+  const resolvedActiveTab = searchTab === "saved" || searchTab === "templates" || searchTab === "parse" || searchTab === "ai-draft"
+    ? searchTab
+    : activeTab;
+
+  const refreshSavedDocuments = useCallback(() => {
+    setSavedDocumentsLoading(true);
+    listDraftChatSessions(50)
+      .then((r) => {
+        setSavedDocuments(
+          r.sessions.filter((session) => session.phase === "done" || session.status === "completed"),
+        );
+      })
+      .catch(() => toast.error("Failed to load saved documents"))
+      .finally(() => setSavedDocumentsLoading(false));
+  }, []);
 
   useEffect(() => {
     listTemplates()
       .then((r) => setTemplates(r.templates))
       .catch(() => toast.error("Failed to load templates"))
       .finally(() => setLoading(false));
+
+    listDraftChatSessions(50)
+      .then((r) => {
+        setSavedDocuments(
+          r.sessions.filter((session) => session.phase === "done" || session.status === "completed"),
+        );
+      })
+      .catch(() => toast.error("Failed to load saved documents"))
+      .finally(() => setSavedDocumentsLoading(false));
+  }, []);
+
+  const handleDeleteDocument = useCallback((sessionId: string) => {
+    deleteDraftChatSession(sessionId)
+      .then(() => {
+        setSavedDocuments((prev) => prev.filter((s) => s.session_id !== sessionId));
+        toast.success("Document deleted");
+      })
+      .catch(() => toast.error("Failed to delete document"));
   }, []);
 
   const handleTemplateChat = (templateId: string) => {
@@ -99,19 +144,24 @@ export default function DocumentsPage() {
     setActiveTab("ai-draft");
   };
 
+  const handleOpenSavedDocument = (sessionId: string) => {
+    setResumeSessionId(sessionId);
+    setActiveTab("ai-draft");
+  };
+
   return (
     <div className="min-h-full">
       {/* Header — hidden in editor mode */}
       {!editorMode && (
-        <div className="border-b border-border bg-gradient-to-r from-amber-500/5 to-orange-500/5 px-6 py-8 md:px-10">
+        <div className="border-b border-border bg-background px-6 py-8 md:px-10">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
             className="flex items-center gap-3"
           >
-            <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <FileText className="h-5 w-5 text-amber-500" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-card">
+              <FileText className="h-5 w-5 text-foreground" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Create a Document</h1>
@@ -122,7 +172,7 @@ export default function DocumentsPage() {
       )}
 
       <div className={editorMode ? "p-3" : "p-6 md:p-10"}>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={resolvedActiveTab} onValueChange={setActiveTab} className="space-y-6">
           {!editorMode && (
             <TabsList className="bg-muted/50">
               <TabsTrigger value="ai-draft" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
@@ -130,6 +180,9 @@ export default function DocumentsPage() {
               </TabsTrigger>
               <TabsTrigger value="templates" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 <FileText className="h-3.5 w-3.5" /> Browse Templates
+              </TabsTrigger>
+              <TabsTrigger value="saved" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Your Documents
               </TabsTrigger>
               <TabsTrigger value="parse" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 <Upload className="h-3.5 w-3.5" /> Analyze Existing
@@ -142,10 +195,13 @@ export default function DocumentsPage() {
               <AIDraftTab
                 preselectedTemplate={preselectedTemplate}
                 initialPrompt={initialDraftPrompt}
+                resumeSessionId={resumeSessionId}
                 onTemplateUsed={() => {
                   setPreselectedTemplate(undefined);
                   setInitialDraftPrompt(undefined);
                 }}
+                onSessionLoaded={() => setResumeSessionId(null)}
+                onSavedDocumentsChange={refreshSavedDocuments}
                 onEditorModeChange={setEditorMode}
               />
             </motion.div>
@@ -160,6 +216,17 @@ export default function DocumentsPage() {
               ) : (
                 <TemplatesTab templates={templates} onChatWithTemplate={handleTemplateChat} />
               )}
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="saved">
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+              <SavedDocumentsTab
+                loading={savedDocumentsLoading}
+                sessions={savedDocuments}
+                onOpen={handleOpenSavedDocument}
+                onDelete={handleDeleteDocument}
+              />
             </motion.div>
           </TabsContent>
 
@@ -186,11 +253,11 @@ async function exportEditorAsPdf(editorHtml: string, title: string) {
 <html><head><title>${title}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Georgia', 'Times New Roman', serif; max-width: 700px; margin: 40px auto; padding: 0 20px; font-size: 13px; line-height: 1.7; color: #1a1a1a; }
-  h1 { font-family: Arial, sans-serif; font-size: 18px; text-align: center; margin: 1.5em 0 0.75em; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #ccc; padding-bottom: 0.4em; }
-  h2 { font-family: Arial, sans-serif; font-size: 15px; margin: 1.25em 0 0.5em; text-transform: uppercase; letter-spacing: 0.03em; }
-  h3 { font-family: Arial, sans-serif; font-size: 13px; font-weight: bold; margin: 1em 0 0.4em; }
-  h4 { font-family: Arial, sans-serif; font-size: 12px; font-weight: 600; font-style: italic; margin: 0.75em 0 0.3em; }
+  body { font-family: Inter, Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; font-size: 16px; line-height: 1.7; color: #1f1b1a; background: #ffffff; }
+  h1 { font-family: Inter, Arial, sans-serif; font-size: 24px; text-align: center; margin: 1.5em 0 0.75em; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #ddd; padding-bottom: 0.4em; }
+  h2 { font-family: Inter, Arial, sans-serif; font-size: 20px; margin: 1.25em 0 0.5em; }
+  h3 { font-family: Inter, Arial, sans-serif; font-size: 18px; font-weight: 700; margin: 1em 0 0.4em; }
+  h4 { font-family: Inter, Arial, sans-serif; font-size: 16px; font-weight: 600; margin: 0.75em 0 0.3em; }
   p { margin: 0.5em 0; text-align: justify; }
   strong { font-weight: bold; }
   em { font-style: italic; }
@@ -203,7 +270,7 @@ async function exportEditorAsPdf(editorHtml: string, title: string) {
   hr { border: none; border-top: 1px solid #ccc; margin: 1.5em 0; }
   table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 12px; }
   th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; vertical-align: top; }
-  th { background: #f5f5f5; font-weight: bold; font-family: Arial, sans-serif; text-transform: uppercase; font-size: 11px; }
+  th { background: #faf4f3; font-weight: bold; font-family: Inter, Arial, sans-serif; font-size: 12px; }
   @media print { body { margin: 0; } @page { margin: 2cm; size: A4; } }
 </style></head><body>
 ${editorHtml}
@@ -228,20 +295,20 @@ async function exportEditorAsDocx(editorHtml: string, title: string) {
 
     if (tag === "h1") {
       children.push(new Paragraph({
-        children: [new TextRun({ text: el.textContent || "", bold: true, size: 32, font: "Arial" })],
+        children: [new TextRun({ text: el.textContent || "", bold: true, size: 32, font: "Inter" })],
         heading: HeadingLevel.HEADING_1,
         spacing: { before: 400, after: 200 },
         alignment: AlignmentType.CENTER,
       }));
     } else if (tag === "h2") {
       children.push(new Paragraph({
-        children: [new TextRun({ text: el.textContent || "", bold: true, size: 26, font: "Arial" })],
+        children: [new TextRun({ text: el.textContent || "", bold: true, size: 26, font: "Inter" })],
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 300, after: 100 },
       }));
     } else if (tag === "h3") {
       children.push(new Paragraph({
-        children: [new TextRun({ text: el.textContent || "", bold: true, size: 24, font: "Arial" })],
+        children: [new TextRun({ text: el.textContent || "", bold: true, size: 24, font: "Inter" })],
         heading: HeadingLevel.HEADING_3,
         spacing: { before: 200, after: 80 },
       }));
@@ -254,7 +321,7 @@ async function exportEditorAsDocx(editorHtml: string, title: string) {
       }));
     } else if (tag === "blockquote") {
       children.push(new Paragraph({
-        children: [new TextRun({ text: el.textContent || "", italics: true, size: 22, font: "Georgia", color: "666666" })],
+        children: [new TextRun({ text: el.textContent || "", italics: true, size: 22, font: "Inter", color: "666666" })],
         spacing: { before: 200, after: 200 },
         indent: { left: 720 },
       }));
@@ -263,7 +330,7 @@ async function exportEditorAsDocx(editorHtml: string, title: string) {
       items.forEach((li, idx) => {
         const prefix = tag === "ol" ? `${idx + 1}. ` : "• ";
         children.push(new Paragraph({
-          children: [new TextRun({ text: prefix + (li.textContent || ""), size: 22, font: "Georgia" })],
+          children: [new TextRun({ text: prefix + (li.textContent || ""), size: 22, font: "Inter" })],
           spacing: { after: 40 },
           indent: { left: 360 },
         }));
@@ -280,28 +347,28 @@ async function exportEditorAsDocx(editorHtml: string, title: string) {
     const runs: InstanceType<typeof TextRun>[] = [];
     el.childNodes.forEach((child) => {
       if (child.nodeType === Node.TEXT_NODE) {
-        runs.push(new TextRun({ text: child.textContent || "", size: 22, font: "Georgia" }));
+        runs.push(new TextRun({ text: child.textContent || "", size: 22, font: "Inter" }));
       } else {
         const childEl = child as HTMLElement;
         const tag = childEl.tagName?.toLowerCase();
         const text = childEl.textContent || "";
         if (tag === "strong" || tag === "b") {
-          runs.push(new TextRun({ text, bold: true, size: 22, font: "Georgia" }));
+          runs.push(new TextRun({ text, bold: true, size: 22, font: "Inter" }));
         } else if (tag === "em" || tag === "i") {
-          runs.push(new TextRun({ text, italics: true, size: 22, font: "Georgia" }));
+          runs.push(new TextRun({ text, italics: true, size: 22, font: "Inter" }));
         } else if (tag === "u") {
-          runs.push(new TextRun({ text, underline: {}, size: 22, font: "Georgia" }));
+          runs.push(new TextRun({ text, underline: {}, size: 22, font: "Inter" }));
         } else if (tag === "s" || tag === "strike") {
-          runs.push(new TextRun({ text, strike: true, size: 22, font: "Georgia" }));
+          runs.push(new TextRun({ text, strike: true, size: 22, font: "Inter" }));
         } else if (tag === "mark") {
-          runs.push(new TextRun({ text, highlight: "yellow", size: 22, font: "Georgia" }));
+          runs.push(new TextRun({ text, highlight: "yellow", size: 22, font: "Inter" }));
         } else {
-          runs.push(new TextRun({ text, size: 22, font: "Georgia" }));
+          runs.push(new TextRun({ text, size: 22, font: "Inter" }));
         }
       }
     });
     if (runs.length === 0) {
-      runs.push(new TextRun({ text: el.textContent || "", size: 22, font: "Georgia" }));
+      runs.push(new TextRun({ text: el.textContent || "", size: 22, font: "Inter" }));
     }
     return runs;
   }
@@ -327,16 +394,20 @@ async function exportEditorAsDocx(editorHtml: string, title: string) {
 }
 
 /* ───────── AI Draft Tab ───────── */
-function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEditorModeChange }: {
+function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTemplateUsed, onSessionLoaded, onSavedDocumentsChange, onEditorModeChange }: {
   preselectedTemplate?: string;
   initialPrompt?: string;
+  resumeSessionId?: string | null;
   onTemplateUsed: () => void;
+  onSessionLoaded: () => void;
+  onSavedDocumentsChange: () => void;
   onEditorModeChange: (v: boolean) => void;
 }) {
   const { autoCollapse, autoExpand } = useSidebar();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
+  const [showRentalIntake, setShowRentalIntake] = useState(preselectedTemplate === "rental_agreement");
   const [sending, setSending] = useState(false);
   const [phase, setPhase] = useState("idle");
   const [templateId, setTemplateId] = useState<string | null>(null);
@@ -344,6 +415,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
   const [editorHtml, setEditorHtml] = useState<string>("");
+  const [savedEditorHtml, setSavedEditorHtml] = useState<string>("");
   const [editableFields, setEditableFields] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
   const [showFields, setShowFields] = useState(false);
@@ -363,9 +435,17 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
   const [emailSubject, setEmailSubject] = useState("");
   const [emailNote, setEmailNote] = useState("");
   const [emailSending, setEmailSending] = useState(false);
+  const [documentSaving, setDocumentSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const refineScrollRef = useRef<HTMLDivElement>(null);
   const templateUsedRef = useRef<string | null>(null);
+  const loadedSessionRef = useRef<string | null>(null);
+  const openPreselectedRentalIntake = useEffectEvent(() => {
+    startTransition(() => {
+      setShowRentalIntake(true);
+    });
+    onTemplateUsed();
+  });
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -387,6 +467,12 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
     if (res.generated_content) {
       setEditableFields({ ...res.collected_fields });
       setGeneratedContent(res.generated_content);
+      const resolvedHtml = res.generated_content.trim().startsWith("<")
+        ? res.generated_content
+        : plainTextToHtml(res.generated_content);
+      setEditorHtml(resolvedHtml);
+      setSavedEditorHtml(resolvedHtml);
+      onSavedDocumentsChange();
     }
 
     const assistantMsg: ChatMsg = {
@@ -395,7 +481,42 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
       content: res.assistant_message,
     };
     setMessages((prev) => [...prev, assistantMsg]);
-  }, []);
+  }, [onSavedDocumentsChange]);
+
+  useEffect(() => {
+    if (!resumeSessionId || loadedSessionRef.current === resumeSessionId) return;
+    loadedSessionRef.current = resumeSessionId;
+
+    getDraftChatSession(resumeSessionId)
+      .then((session: DraftChatSessionDetail) => {
+        setSessionId(session.session_id);
+        setTemplateId(session.template_id);
+        setPhase(session.phase);
+        setCollectedFields(session.collected_fields);
+        setMissingFields(session.missing_fields);
+        setEditableFields(session.collected_fields);
+        setGeneratedContent(session.generated_content);
+        const resolvedHtml = session.generated_content
+          ? (session.generated_content.trim().startsWith("<")
+            ? session.generated_content
+            : plainTextToHtml(session.generated_content))
+          : "";
+        setEditorHtml(resolvedHtml);
+        setSavedEditorHtml(resolvedHtml);
+        setMessages(
+          session.messages.map((message) => ({
+            id: message.id,
+            role: message.role as "user" | "assistant",
+            content: message.content,
+          })),
+        );
+        onSessionLoaded();
+      })
+      .catch((error: unknown) => {
+        loadedSessionRef.current = null;
+        toast.error(error instanceof Error ? error.message : "Failed to open saved document");
+      });
+  }, [onSessionLoaded, resumeSessionId]);
 
   const handleSend = useCallback(async (text?: string, tplId?: string) => {
     const msg = (text || input).trim();
@@ -428,6 +549,10 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
   }, [applyResponse, input, sending, sessionId]);
 
   useEffect(() => {
+    if (preselectedTemplate === "rental_agreement") {
+      openPreselectedRentalIntake();
+      return;
+    }
     if (preselectedTemplate && templateUsedRef.current !== `${preselectedTemplate}:${initialPrompt || ""}`) {
       templateUsedRef.current = `${preselectedTemplate}:${initialPrompt || ""}`;
       const label = TEMPLATE_LABELS[preselectedTemplate] || preselectedTemplate;
@@ -455,15 +580,49 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
     setSessionId(null);
     setMessages([]);
     setInput("");
+    setShowRentalIntake(false);
     setPhase("idle");
     setTemplateId(null);
     setCollectedFields({});
     setMissingFields([]);
     setGeneratedContent(null);
     setEditorHtml("");
+    setSavedEditorHtml("");
     setEditableFields({});
     setPendingEdit(null);
     templateUsedRef.current = null;
+    loadedSessionRef.current = null;
+  };
+
+  const handleRentalAgreementGenerate = async (values: RentalAgreementFormValues) => {
+    setSending(true);
+    try {
+      const params = Object.fromEntries(
+        Object.entries(values).filter(([, value]) => value.trim().length > 0),
+      );
+      const response = await generateDocument({
+        template_id: "rental_agreement",
+        params,
+      });
+      const resolvedHtml = response.content.trim().startsWith("<")
+        ? response.content
+        : plainTextToHtml(response.content);
+      setSessionId(response.session_id ?? null);
+      setTemplateId("rental_agreement");
+      setEditableFields(params);
+      setCollectedFields(params);
+      setMissingFields([]);
+      setGeneratedContent(response.content);
+      setEditorHtml(resolvedHtml);
+      setSavedEditorHtml(resolvedHtml);
+      setPhase("done");
+      toast.success("Document generated and saved to your account.");
+      onSavedDocumentsChange();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to generate rental agreement");
+    } finally {
+      setSending(false);
+    }
   };
 
   const copyContent = () => {
@@ -479,6 +638,29 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
   const handlePrint = () => {
     const html = editorHtml || generatedContent || "";
     exportEditorAsPdf(html, docTitle);
+  };
+
+  const handleSaveDocument = async () => {
+    const html = editorHtml || generatedContent || "";
+    if (!sessionId || !html.trim() || documentSaving) return;
+    setDocumentSaving(true);
+    try {
+      const res = await saveDraftChatContent(sessionId, html);
+      const resolvedHtml = res.generated_content
+        ? (res.generated_content.trim().startsWith("<")
+          ? res.generated_content
+          : plainTextToHtml(res.generated_content))
+        : html;
+      setGeneratedContent(res.generated_content ?? html);
+      setEditorHtml(resolvedHtml);
+      setSavedEditorHtml(resolvedHtml);
+      toast.success("Document saved.");
+      onSavedDocumentsChange();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to save document");
+    } finally {
+      setDocumentSaving(false);
+    }
   };
 
   const handleRefine = async () => {
@@ -549,6 +731,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
   const acceptEdit = () => {
     if (!pendingEdit) return;
     setGeneratedContent(pendingEdit.newContent);
+    setEditorHtml(pendingEdit.newContent.trim().startsWith("<") ? pendingEdit.newContent : plainTextToHtml(pendingEdit.newContent));
     setEditorFlash(true);
     setTimeout(() => setEditorFlash(false), 1500);
     setPendingEdit(null);
@@ -562,6 +745,8 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
   const docTitle = templateId
     ? (TEMPLATE_LABELS[templateId] || templateId).replace(/\s+/g, "-").toLowerCase()
     : "document-draft";
+  const currentDocumentHtml = editorHtml || generatedContent || "";
+  const hasUnsavedChanges = !!currentDocumentHtml && currentDocumentHtml !== savedEditorHtml;
 
   // ── Editor View (after generation) ──
   if (generatedContent) {
@@ -611,6 +796,16 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
               </Button>
             )}
             <Separator orientation="vertical" className="h-5" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveDocument}
+              disabled={!sessionId || !hasUnsavedChanges || documentSaving}
+              className="gap-1.5 text-xs"
+              title="Save document to your account"
+            >
+              {documentSaving ? "Saving..." : "Save"}
+            </Button>
             <Button variant="ghost" size="sm" onClick={copyContent} className="gap-1.5 text-xs" title="Copy to clipboard">
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied" : "Copy"}
@@ -635,9 +830,9 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
                 setShowEmailDialog(true);
               }}
               className="gap-1.5 text-xs"
-              title="Email document to client"
+              title="Send document with Gmail"
             >
-              <Mail className="h-3.5 w-3.5" /> Email
+              <Mail className="h-3.5 w-3.5" /> Gmail
             </Button>
           </div>
         </div>
@@ -649,12 +844,12 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
               initial={{ opacity: 0, y: -8, height: 0 }}
               animate={{ opacity: 1, y: 0, height: "auto" }}
               exit={{ opacity: 0, y: -8, height: 0 }}
-              className="rounded-xl border border-amber-500/30 bg-amber-500/5 shadow-sm overflow-hidden"
+              className="overflow-hidden rounded-xl border border-border bg-background shadow-sm"
             >
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-amber-500/20 bg-amber-500/10">
+              <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2.5">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                  <Sparkles className="h-3.5 w-3.5 text-foreground" />
+                  <span className="text-xs font-semibold text-foreground">
                     AI Edit: &ldquo;{pendingEdit.instruction}&rdquo;
                   </span>
                 </div>
@@ -663,7 +858,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
                     variant="default"
                     size="sm"
                     onClick={acceptEdit}
-                    className="gap-1.5 text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="gap-1.5 text-xs h-7 bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     <CheckCheck className="h-3 w-3" /> Accept
                   </Button>
@@ -671,7 +866,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
                     variant="ghost"
                     size="sm"
                     onClick={rejectEdit}
-                    className="gap-1.5 text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-500/10"
+                    className="gap-1.5 text-xs h-7 text-primary hover:text-primary hover:bg-primary/10"
                   >
                     <X className="h-3 w-3" /> Reject
                   </Button>
@@ -692,14 +887,14 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
                     return parts.map((part, i) => {
                       if (part.added) {
                         return (
-                          <span key={i} className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-0.5 rounded-sm">
+                          <span key={i} className="bg-primary/15 text-primary px-0.5 rounded-sm">
                             {part.value}
                           </span>
                         );
                       }
                       if (part.removed) {
                         return (
-                          <span key={i} className="bg-red-500/20 text-red-600 dark:text-red-400 line-through px-0.5 rounded-sm">
+                          <span key={i} className="bg-primary/10 text-primary line-through px-0.5 rounded-sm opacity-70">
                             {part.value}
                           </span>
                         );
@@ -874,7 +1069,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
               />
             )}
             <LegalEditor
-              content={generatedContent}
+              content={currentDocumentHtml}
               onChange={(html) => setEditorHtml(html)}
             />
           </div>
@@ -903,14 +1098,14 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
                         <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                           <Mail className="h-4 w-4 text-primary" />
                         </div>
-                        <CardTitle className="text-base">Email Document</CardTitle>
+                        <CardTitle className="text-base">Send with Gmail</CardTitle>
                       </div>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowEmailDialog(false)}>
                         <span className="text-lg leading-none">&times;</span>
                       </Button>
                     </div>
                     <CardDescription className="text-xs">
-                      Send this document directly to your client. You will be CC&apos;d automatically.
+                      Send this document directly to your client with Gmail delivery, and notify the admin Slack channel automatically.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -967,7 +1162,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
                         ) : (
                           <Send className="h-3.5 w-3.5" />
                         )}
-                        {emailSending ? "Sending..." : "Send Document"}
+                        {emailSending ? "Sending..." : "Send via Gmail"}
                       </Button>
                       <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
                         Cancel
@@ -983,6 +1178,20 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
     );
   }
 
+  if (showRentalIntake && !generatedContent) {
+    return (
+      <RentalAgreementIntake
+        generating={sending}
+        onGenerate={handleRentalAgreementGenerate}
+        onCancel={() => {
+          if (!sending) {
+            setShowRentalIntake(false);
+          }
+        }}
+      />
+    );
+  }
+
   // ── Idle: Welcome + Suggestions ──
   if (phase === "idle" && messages.length === 0) {
     return (
@@ -992,9 +1201,9 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
         className="space-y-6"
       >
         <Card className="border-border/50 overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-amber-500/5 to-orange-500/5">
+          <CardHeader className="bg-background">
             <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="h-4 w-4 text-amber-500" />
+              <Sparkles className="h-4 w-4 text-foreground" />
               <CardTitle className="text-base">What document do you need?</CardTitle>
             </div>
             <CardDescription>
@@ -1002,6 +1211,22 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-5">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Need a rental agreement?</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Use the guided checklist with stamp-paper options, reference formats, and all major lease fields instead of the generic bot input.
+                  </p>
+                </div>
+                <Button
+                  className="rounded-xl"
+                  onClick={() => setShowRentalIntake(true)}
+                >
+                  Open Rental Intake
+                </Button>
+              </div>
+            </div>
             <div className="flex gap-2">
               <Textarea
                 placeholder="e.g., I need a rental agreement for a 2BHK flat in Koramangala, Bangalore..."
@@ -1026,9 +1251,9 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
                 {SUGGESTIONS.map((s) => (
                   <Button
                     key={s}
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="text-xs rounded-lg hover:bg-primary/5 hover:border-primary/30 transition-all"
+                    className="rounded-lg border border-border bg-white text-xs text-foreground hover:bg-[#F3F5FA] hover:text-foreground"
                     onClick={() => handleSend(s)}
                   >
                     {s}
@@ -1050,7 +1275,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
         {/* Chat header */}
         <div className="border-b border-border px-4 py-2.5 flex items-center justify-between shrink-0 bg-accent/20">
           <div className="flex items-center gap-2">
-            <Wand2 className="h-4 w-4 text-amber-500" />
+            <Wand2 className="h-4 w-4 text-foreground" />
             <span className="text-sm font-semibold">
               {templateId ? TEMPLATE_LABELS[templateId] || templateId : "AI Drafting"}
             </span>
@@ -1239,6 +1464,74 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, onTemplateUsed, onEdit
   );
 }
 
+function SavedDocumentsTab({ loading, sessions, onOpen, onDelete }: {
+  loading: boolean;
+  sessions: DraftChatSessionSummary[];
+  onOpen: (sessionId: string) => void;
+  onDelete: (sessionId: string) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((item) => (
+          <Skeleton key={item} className="h-28 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <Card className="border-border/50">
+        <CardContent className="py-10 text-center">
+          <p className="text-sm text-muted-foreground">No saved documents yet. Generate a document and it will appear here.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {sessions.map((session) => (
+        <Card
+          key={session.session_id}
+          className="cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md group"
+          onClick={() => onOpen(session.session_id)}
+        >
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-background">
+                  <FileText className="h-5 w-5 text-foreground" />
+                </div>
+                <div>
+                  <CardTitle>{session.template_id ? (TEMPLATE_LABELS[session.template_id] || session.template_id) : "Saved Document"}</CardTitle>
+                  <CardDescription>Saved on {new Date(session.created_at).toLocaleDateString()}</CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[11px]">
+                  {session.status}
+                </Badge>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(session.session_id); }}
+                  className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-primary/10 text-primary hover:text-primary"
+                  title="Delete document"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Open this draft to review, edit, and save changes at any time.</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 /* ───────── Templates Tab ───────── */
 function TemplatesTab({ templates, onChatWithTemplate }: {
   templates: Template[];
@@ -1264,6 +1557,11 @@ function TemplatesTab({ templates, onChatWithTemplate }: {
               </div>
             </CardHeader>
             <CardContent className="space-y-3 flex-1 flex flex-col justify-end">
+              {t.template_id === "rental_agreement" && (
+                <div className="rounded-xl border border-border bg-background p-3 text-xs text-foreground">
+                  Includes guided intake, stamp options for Rs.20, Rs.50, Rs.80, Rs.100, and reference formats for residential, room, house, and commercial leases.
+                </div>
+              )}
               <div className="flex flex-wrap gap-1.5">
                 {t.required_fields.slice(0, 4).map((p) => (
                   <Badge key={p} variant="default" className="text-[11px]">{p.replace(/_/g, " ")}</Badge>
@@ -1316,7 +1614,7 @@ function ParseTab() {
   return (
     <div className="space-y-4">
       <Card className="border-border/50 overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-amber-500/5 to-orange-500/5">
+        <CardHeader className="bg-background">
           <CardTitle className="text-base">Analyze an Existing Document</CardTitle>
           <CardDescription>Upload a contract to extract parties, terms, obligations, and risks.</CardDescription>
         </CardHeader>

@@ -30,6 +30,7 @@ class DocumentGenerateResponse(APIModel):
     template_id: str
     content: str
     format: str = "markdown"
+    session_id: Optional[str] = None
 
 
 class DocumentParseRequest(BaseModel):
@@ -74,6 +75,10 @@ class DraftChatStartRequest(BaseModel):
 
 class DraftChatMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
+
+
+class DraftChatContentRequest(BaseModel):
+    content: str = Field(..., min_length=1)
 
 
 class DraftChatRefineRequest(BaseModel):
@@ -122,3 +127,14 @@ class DraftChatSessionSummary(APIModel):
 
 class DraftChatListResponse(APIModel):
     sessions: list[DraftChatSessionSummary] = []
+
+
+class DraftChatShareRequest(APIModel):
+    recipient_email: str
+    recipient_name: str
+    message: str = ""
+
+
+class DraftChatShareResponse(APIModel):
+    status: str
+    message: str

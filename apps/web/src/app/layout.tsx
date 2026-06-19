@@ -1,22 +1,9 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthShell } from "@/components/auth-shell";
 import { Providers } from "@/components/providers";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://lexhelm.com";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
@@ -126,9 +113,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
       </head>
-      <body
-        className={`${inter.variable} ${geistMono.variable} antialiased text-[17px] leading-relaxed`}
-      >
+      <body className="antialiased text-[17px] leading-relaxed">
         <Providers>
           <AuthShell>{children}</AuthShell>
         </Providers>

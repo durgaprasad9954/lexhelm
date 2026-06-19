@@ -242,19 +242,9 @@ export default function LoginPage() {
                             console.error("[Login] Google login error:", err);
                           }
                         }}
-                        onError={(error) => {
-                          console.error("[Login] Google onError triggered:", error);
-                          // Handle specific Google OAuth errors
-                          const errorMsg = error?.toString() || "";
-                          if (errorMsg.includes("invalid_client") || errorMsg.includes("401")) {
-                            setLoginError(
-                              "Google OAuth configuration error (invalid_client). " +
-                              "The Client ID may be incorrect or not authorized for this domain. " +
-                              "Please verify the OAuth credentials in Google Cloud Console."
-                            );
-                          } else {
-                            setLoginError("Google sign-in popup closed or failed. Please try again.");
-                          }
+                        onError={() => {
+                          console.error("[Login] Google onError triggered");
+                          setLoginError("Google sign-in popup closed or failed. Please try again.");
                           toast.error("Google sign-in failed. Please try again.");
                         }}
                         theme="outline"

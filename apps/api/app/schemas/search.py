@@ -34,6 +34,25 @@ class CaseSearchResponse(APIModel):
     page: int = 0
 
 
+class SearchChatRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=1000)
+
+
+class SearchChatSource(APIModel):
+    doc_id: Optional[int] = None
+    title: Optional[str] = None
+    headline: Optional[str] = None
+    court: Optional[str] = None
+    date: Optional[str] = None
+    citation: Optional[str] = None
+
+
+class SearchChatResponse(APIModel):
+    query: str
+    answer: str
+    sources: list[SearchChatSource] = []
+
+
 class CaseDetail(APIModel):
     doc_id: int
     title: Optional[str] = None

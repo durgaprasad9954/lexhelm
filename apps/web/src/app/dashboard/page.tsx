@@ -4,11 +4,11 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  FileText, MessageSquare, Search, Briefcase, Activity,
+  FileText, MessageSquare, Search, Activity,
   ArrowRight, Scale, Sparkles, BookOpen, Shield, Landmark,
-  FileSearch, Upload, Wand2, Play, Clock, Zap, Home, Users,
+  FileSearch, Upload, Wand2, Clock, Zap, Home, Users,
 } from "lucide-react";
-import { healthCheck, listDocSessions, listJobs } from "@/lib/api";
+import { healthCheck, listDocSessions } from "@/lib/api";
 import Link from "next/link";
 
 const container = {
@@ -24,10 +24,13 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
 };
 
+function buildSearchHref(prompt: string) {
+  return `/search?prompt=${encodeURIComponent(prompt)}`;
+}
+
 export default function DashboardPage() {
   const [apiStatus, setApiStatus] = useState<"checking" | "online" | "offline">("checking");
   const [docCount, setDocCount] = useState(0);
-  const [jobCount, setJobCount] = useState(0);
 
   useEffect(() => {
     healthCheck()
@@ -36,20 +39,17 @@ export default function DashboardPage() {
     listDocSessions(100)
       .then((r) => setDocCount(r.sessions.length))
       .catch(() => {});
-    listJobs(100)
-      .then((r) => setJobCount(r.jobs.length))
-      .catch(() => {});
   }, []);
 
   const features = [
     {
       icon: Search,
-      title: "Legal Search",
-      desc: "Search 100M+ Indian legal documents — Supreme Court, High Courts, Tribunals, statutes & case law.",
+      title: "Legal Search Chat",
+      desc: "Ask a legal question in chat and get an LLM-generated answer grounded in Indian case law and legal search results.",
       href: "/search",
-      color: "from-violet-500/10 to-purple-500/10",
-      iconColor: "text-violet-500",
-      iconBg: "bg-violet-500/10",
+      color: "from-primary/8 to-primary/4",
+      iconColor: "text-primary",
+      iconBg: "bg-primary/10",
       examples: ["Employee termination rules", "Tenant eviction rights", "Startup investor agreements"],
     },
     {
@@ -57,50 +57,38 @@ export default function DashboardPage() {
       title: "Review Document",
       desc: `Upload any contract or agreement and ask questions in plain English.${docCount > 0 ? ` ${docCount} active sessions.` : ""}`,
       href: "/doc-chat",
-      color: "from-emerald-500/10 to-teal-500/10",
-      iconColor: "text-emerald-500",
-      iconBg: "bg-emerald-500/10",
+      color: "from-primary/8 to-primary/4",
+      iconColor: "text-primary",
+      iconBg: "bg-primary/10",
       examples: ["Summarize this contract", "Are there any red flags?", "What if I cancel early?"],
     },
     {
       icon: FileText,
-      title: "Create Document",
+      title: "Create Documents",
       desc: "Describe what you need and the AI will create a ready-to-use legal document for you.",
       href: "/documents",
-      color: "from-amber-500/10 to-orange-500/10",
-      iconColor: "text-amber-500",
-      iconBg: "bg-amber-500/10",
+      color: "from-primary/8 to-primary/4",
+      iconColor: "text-primary",
+      iconBg: "bg-primary/10",
       examples: ["Rental agreement", "NDA for vendor", "Employment offer letter"],
-    },
-    {
-      icon: Briefcase,
-      title: "Deep Research",
-      desc: `Ask a complex legal question and get a thorough research report with cases and recommendations.${jobCount > 0 ? ` ${jobCount} tasks.` : ""}`,
-      href: "/jobs",
-      color: "from-rose-500/10 to-pink-500/10",
-      iconColor: "text-rose-500",
-      iconBg: "bg-rose-500/10",
-      examples: ["Can my company fire me without notice?", "Property dispute resolution", "Freelancer tax obligations"],
     },
   ];
 
   const quickActions = [
-    { icon: Search, label: "Search legal topics", href: "/search", color: "text-violet-500", bg: "bg-violet-500/10" },
-    { icon: Upload, label: "Review a contract", href: "/doc-chat", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { icon: Home, label: "Instant lease agreement", href: "/documents?template=rental_agreement&feature=instant-lease", color: "text-sky-500", bg: "bg-sky-500/10" },
-    { icon: Wand2, label: "Create a document", href: "/documents", color: "text-amber-500", bg: "bg-amber-500/10" },
-    { icon: Play, label: "Start a research task", href: "/jobs", color: "text-rose-500", bg: "bg-rose-500/10" },
-    { icon: Users, label: "Start Consultation", href: "/consultation", color: "text-indigo-500", bg: "bg-indigo-500/10" },
+    { icon: Search, label: "Ask a legal question", href: "/search", color: "text-primary", bg: "bg-primary/10" },
+    { icon: Upload, label: "Review a contract", href: "/doc-chat", color: "text-primary", bg: "bg-primary/10" },
+    { icon: Home, label: "Instant lease agreement", href: "/documents?template=rental_agreement&feature=instant-lease", color: "text-primary", bg: "bg-primary/10" },
+    { icon: Wand2, label: "Create documents", href: "/documents", color: "text-primary", bg: "bg-primary/10" },
+    { icon: Users, label: "Start Consultation", href: "/consultation", color: "text-primary", bg: "bg-primary/10" },
   ];
 
   return (
-    <div className="min-h-full">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden border-b border-border bg-gradient-to-br from-primary/5 via-background to-violet-500/5 px-6 py-10 md:px-10 md:py-14">
+    <div className="min-h-full bg-white">
+      <div className="relative overflow-hidden border-b border-border bg-background px-6 py-10 md:px-10 md:py-14">
         <div
           className="absolute inset-0 opacity-20"
           style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, oklch(0.45 0.15 280 / 0.1) 1px, transparent 0)`,
+            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(65, 92, 164, 0.14) 1px, transparent 0)`,
             backgroundSize: "24px 24px",
           }}
         />
@@ -120,7 +108,7 @@ export default function DashboardPage() {
                   Welcome to LexHelm
                 </h1>
                 <p className="text-sm text-muted-foreground/90 mt-0.5">
-                  Create legal documents, understand contracts, and get answers to legal questions
+                  Create legal documents, review contracts, and ask legal questions in one workspace
                 </p>
               </div>
             </div>
@@ -134,7 +122,6 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* Quick Actions */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -154,8 +141,7 @@ export default function DashboardPage() {
         </motion.div>
       </div>
 
-      {/* Feature Cards */}
-      <div className="p-6 md:p-10">
+      <div className="bg-white p-6 md:p-10">
         <motion.div
           variants={container}
           initial="hidden"
@@ -164,12 +150,12 @@ export default function DashboardPage() {
         >
           <motion.div variants={item} className="md:col-span-2">
             <Link href="/documents?template=rental_agreement&feature=instant-lease" className="block group">
-              <Card className="relative overflow-hidden border-sky-500/20 bg-gradient-to-br from-sky-500/10 via-background to-emerald-500/10 transition-all duration-300 hover:shadow-lg hover:border-sky-500/40 hover:-translate-y-0.5">
+              <Card className="relative overflow-hidden border-primary/20 bg-background transition-all duration-300 hover:shadow-lg hover:border-primary/40 hover:-translate-y-0.5">
                 <CardContent className="relative p-5 md:p-6">
                   <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                     <div className="flex items-start gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-sky-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105">
-                        <Home className="h-6 w-6 text-sky-500" />
+                      <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105">
+                        <Home className="h-6 w-6 text-primary" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -192,7 +178,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-sky-600 dark:text-sky-400 md:shrink-0">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-primary md:shrink-0">
                       <Zap className="h-4 w-4" />
                       Generate now
                       <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -225,9 +211,11 @@ export default function DashboardPage() {
                   <CardContent className="relative pt-0">
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {f.examples.map((ex) => (
-                        <span key={ex} className="text-[11px] font-medium text-muted-foreground bg-muted/80 px-2 py-0.5 rounded-md">
-                          {ex}
-                        </span>
+                        <Link key={ex} href={buildSearchHref(ex)}>
+                          <span className="inline-flex text-[11px] font-medium text-muted-foreground bg-muted/80 px-2 py-0.5 rounded-md transition-colors hover:bg-primary hover:text-white">
+                            {ex}
+                          </span>
+                        </Link>
                       ))}
                     </div>
                   </CardContent>
@@ -237,14 +225,13 @@ export default function DashboardPage() {
           ))}
         </motion.div>
 
-        {/* What you can do */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.4 }}
           className="mt-6"
         >
-          <Card className="bg-gradient-to-r from-primary/5 to-violet-500/5 border-primary/10">
+          <Card className="bg-card border-primary/15">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
@@ -255,17 +242,17 @@ export default function DashboardPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-violet-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <FileSearch className="h-3.5 w-3.5 text-violet-500" />
+                    <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <FileSearch className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <div>
                       <p className="text-sm font-medium">Find relevant case law in seconds</p>
-                      <p className="text-xs text-muted-foreground">Search across Supreme Court, High Courts & Tribunals with AI-ranked relevance.</p>
+                      <p className="text-xs text-muted-foreground">Ask a question in chat and review case-backed answers with linked search results.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <Shield className="h-3.5 w-3.5 text-emerald-500" />
+                    <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Shield className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <div>
                       <p className="text-sm font-medium">Analyze contracts for risks</p>
@@ -275,8 +262,8 @@ export default function DashboardPage() {
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <BookOpen className="h-3.5 w-3.5 text-amber-500" />
+                    <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <BookOpen className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <div>
                       <p className="text-sm font-medium">Draft legal documents with AI</p>
@@ -284,12 +271,12 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-rose-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <Landmark className="h-3.5 w-3.5 text-rose-500" />
+                    <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Landmark className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Deep legal research memos</p>
-                      <p className="text-xs text-muted-foreground">Submit complex queries and get comprehensive research memos with citations.</p>
+                      <p className="text-sm font-medium">Open your generated documents separately</p>
+                      <p className="text-xs text-muted-foreground">Saved documents stay in the dedicated documents area instead of the home dashboard.</p>
                     </div>
                   </div>
                 </div>

@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -29,9 +27,11 @@ services:
     environment:
       - PORT=8080
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gcs-credentials.json
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/lexhelm_db?sslmode=disable
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     volumes:
       - ./apps/api/app:/app/app
+      - ./scripts:/scripts:ro
       - ./apps/api/templates:/app/templates
       - ./apps/api/gcs-credentials.json:/app/gcs-credentials.json:ro
     restart: unless-stopped
@@ -45,6 +45,19 @@ services:
       retries: 3
       start_period: 10s
 
+  web-proxy:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/dev-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
 
   worker:
     build:
@@ -54,9 +67,11 @@ services:
       - .env.local
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gcs-credentials.json
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/lexhelm_db
     command: ["python", "-m", "app.worker"]
     volumes:
       - ./apps/api/app:/app/app
+      - ./scripts:/scripts:ro
       - ./apps/api/templates:/app/templates
       - ./apps/api/gcs-credentials.json:/app/gcs-credentials.json:ro
     restart: unless-stopped

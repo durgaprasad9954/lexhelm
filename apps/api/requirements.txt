@@ -32,6 +32,7 @@ google-genai>=1.0.0
 
 # HTTP retries (search service)
 tenacity>=8.0.0,<10.0.0
+requests>=2.31.0,<3.0.0
 
 # AMQP (async job queue — LavinMQ/CloudAMQP)
 aio-pika>=9.0.0,<10.0.0

@@ -1,17 +1,22 @@
 """Document generation endpoints — contract/agreement drafting."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.jwt_auth import JWTPayload, get_jwt_payload_optional
 from app.core.rate_limit import RateLimit
+from app.db.session import async_session_factory
 from app.schemas.document import (
     DocumentGenerateRequest, DocumentGenerateResponse, DocumentParseRequest,
     DocumentParseResponse, DraftFromDescriptionRequest, DraftFromDescriptionResponse,
     KeyTerm, TemplateInfo, TemplateListResponse,
 )
-from app.services import document_service
+from app.services import document_service, draft_chat_service
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _gen_limit = RateLimit(max_requests=20, window_seconds=3600, key_prefix="doc_gen")
 _parse_limit = RateLimit(max_requests=15, window_seconds=3600, key_prefix="doc_parse")
@@ -26,15 +31,41 @@ async def list_templates():
 
 
 @router.post("/generate", response_model=DocumentGenerateResponse, dependencies=[Depends(_gen_limit)])
-async def generate_document(req: DocumentGenerateRequest):
+async def generate_document(
+    req: DocumentGenerateRequest,
+    jwt: JWTPayload | None = Depends(get_jwt_payload_optional),
+):
     try:
+        validated_params = await document_service.validate_document_params(req.template_id, req.params)
         if req.ai_enhance:
-            content = await document_service.generate_draft_enhanced(req.template_id, req.params)
+            content = await document_service.generate_draft_enhanced(req.template_id, validated_params)
         else:
-            content = document_service.generate_draft(req.template_id, req.params)
+            content = document_service.generate_draft(req.template_id, validated_params)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return DocumentGenerateResponse(template_id=req.template_id, content=content, format="markdown")
+
+    session_id = None
+    if jwt:
+        try:
+            async with async_session_factory() as session:
+                draft = await draft_chat_service.create_generated_session(
+                    session,
+                    template_id=req.template_id,
+                    collected_fields=validated_params,
+                    generated_content=content,
+                    org_id=jwt.org_id,
+                    user_id=jwt.user_id,
+                )
+                session_id = draft.id
+        except Exception:
+            logger.exception("Failed to save generated document session")
+
+    return DocumentGenerateResponse(
+        template_id=req.template_id,
+        content=content,
+        format="html" if content.lstrip().startswith("<") else "markdown",
+        session_id=session_id,
+    )
 
 
 @router.post("/draft", response_model=DraftFromDescriptionResponse, dependencies=[Depends(_gen_limit)])

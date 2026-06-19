@@ -1,0 +1,14 @@
+{
+  "name": "lexhelm",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose up -d postgres api && npm --prefix apps/web run dev",
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:api": "docker compose up postgres api",
+    "dev:api:detached": "docker compose up -d postgres api",
+    "check:whatsapp": "docker compose exec -T api sh -lc 'PYTHONPATH=/app python /scripts/check-whatsapp-token.py'",
+    "build": "npm --prefix apps/web run build",
+    "start": "npm --prefix apps/web run start",
+    "lint": "npm --prefix apps/web run lint"
+  }
+}

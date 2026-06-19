@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -23,6 +24,7 @@ from app.services.email_service import send_consultation_notification
 from app.services.whatsapp_service import send_consultation_whatsapp_notification
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Admin emails for notifications
 ADMIN_EMAILS = ["vikas@navyaai.com", "marketing@navyaai.com"]
@@ -71,7 +73,7 @@ async def submit_consultation(
     )
 
     # Send WhatsApp notification to admin
-    send_consultation_whatsapp_notification(
+    whatsapp_sent = send_consultation_whatsapp_notification(
         name=consultation.name,
         email=consultation.email,
         phone=consultation.phone,
@@ -80,6 +82,11 @@ async def submit_consultation(
         subject=consultation.subject,
         description=consultation.description,
     )
+    if not whatsapp_sent:
+        logger.warning(
+            "Consultation %s was saved, but WhatsApp notification was not delivered.",
+            consultation.id,
+        )
 
     return consultation
 

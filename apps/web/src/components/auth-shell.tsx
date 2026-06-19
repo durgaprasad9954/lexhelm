@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth";
 import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
@@ -10,7 +10,7 @@ import { Scale, Clock, CheckCircle, LogOut, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { checkBetaStatus, submitBetaRequest } from "@/lib/api";
 
-const PUBLIC_PATHS = ["/login", "/create", "/blog"];
+const PUBLIC_PATHS = ["/login", "/create", "/blog", "/public-doc-chat"];
 const PUBLIC_EXACT = ["/"];
 const ADMIN_EMAILS = ["vikas@navyaai.com", "anand@navyaai.com", "marketing@navyaai.com"];
 const BETA_STATUS_KEY = "lexhelm_beta_status";
@@ -32,7 +32,9 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   // Check beta status when user authenticates
   useEffect(() => {
     if (!isAuthenticated || !user?.email || isAdmin || isDev) {
-      setBetaStatus(isAdmin || isDev ? "approved" : null);
+      startTransition(() => {
+        setBetaStatus(isAdmin || isDev ? "approved" : null);
+      });
       return;
     }
 
@@ -42,13 +44,17 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       try {
         const { email, status } = JSON.parse(cached);
         if (email === user.email && status === "approved") {
-          setBetaStatus("approved");
+          startTransition(() => {
+            setBetaStatus("approved");
+          });
           return;
         }
       } catch { /* ignore */ }
     }
 
-    setBetaChecking(true);
+    startTransition(() => {
+      setBetaChecking(true);
+    });
     checkBetaStatus(user.email)
       .then(async (res) => {
         if (res.status === "approved") {
@@ -80,7 +86,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         setBetaStatus("approved");
       })
       .finally(() => setBetaChecking(false));
-  }, [isAuthenticated, user?.email, isAdmin]);
+  }, [isAuthenticated, user?.email, user?.name, isAdmin, isDev]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isPublic) {
@@ -104,9 +110,9 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           className="flex flex-col items-center gap-4"
         >
           <div className="relative">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Scale className="h-6 w-6 text-primary" />
-            </div>
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#415CA4] shadow-lg">
+            <Scale className="h-8 w-8 text-white" />
+          </div>
             <motion.div
               className="absolute -inset-2 rounded-2xl border-2 border-primary/20"
               animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0, 0.5] }}
@@ -139,8 +145,8 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           animate={{ opacity: 1, y: 0 }}
           className="max-w-md mx-auto text-center px-6"
         >
-          <div className="h-16 w-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-6">
-            <Clock className="h-8 w-8 text-amber-500" />
+          <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
+            <Clock className="h-8 w-8 text-primary" />
           </div>
           <h1 className="text-2xl font-bold mb-2">You&apos;re on the Waitlist</h1>
           <p className="text-muted-foreground mb-6">
@@ -194,12 +200,39 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+const PAGE_NAMES: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/search": "Legal Search Chat",
+  "/doc-chat": "Review Document",
+  "/documents": "Create Documents",
+  "/admin": "Admin Panel",
+  "/consultation": "Consultation",
+};
+
+function getPageName(pathname: string): string {
+  // Exact match first
+  if (PAGE_NAMES[pathname]) return PAGE_NAMES[pathname];
+  // Prefix match
+  for (const [key, label] of Object.entries(PAGE_NAMES)) {
+    if (pathname.startsWith(key + "/")) return label;
+  }
+  return "";
+}
+
   return (
     <SidebarProvider>
       <SidebarRouteSync pathname={pathname} />
       <div className="flex h-screen overflow-hidden bg-background">
         <AppSidebar />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto flex flex-col">
+          {/* Page Name Header */}
+          {getPageName(pathname) && (
+            <div className="shrink-0 border-b border-border/60 bg-card/70 backdrop-blur-sm px-6 py-3 flex items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">LexHelm</span>
+              <span className="text-muted-foreground/40">/</span>
+              <span className="text-sm font-semibold text-primary">{getPageName(pathname)}</span>
+            </div>
+          )}
           <AnimatePresence mode="wait">
             <motion.div
               key={pathname}
@@ -207,7 +240,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="min-h-full"
+              className="flex-1"
             >
               {children}
             </motion.div>
