@@ -1,10 +1,10 @@
 """Document generation service — template-based contract/agreement drafting."""
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
-import base64
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -62,6 +62,9 @@ def _looks_like_gibberish(value: str) -> bool:
 
 def _parse_supported_date(value: str) -> bool:
     text = _normalize_text(value)
+    text = re.sub(r"\s*([/-])\s*", r"\1", text)
+    text = re.sub(r"\s*,\s*", ", ", text)
+    text = text.replace(".", "/")
     for fmt in (
         "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y",
         "%d %B %Y", "%d %b %Y", "%B %d, %Y", "%b %d, %Y",
@@ -73,6 +76,18 @@ def _parse_supported_date(value: str) -> bool:
         except ValueError:
             continue
     return False
+
+
+def _ordinal(value: str) -> str:
+    digits = re.sub(r"\D+", "", str(value or ""))
+    if not digits:
+        return str(value or "")
+    number = int(digits)
+    if 10 <= number % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(number % 10, "th")
+    return f"{number}{suffix}"
 
 
 def _build_government_deposit_return_policy(jurisdiction: str) -> str:
@@ -89,15 +104,43 @@ def _build_government_deposit_return_policy(jurisdiction: str) -> str:
 
 
 def _stamp_asset_path(stamp_amount: str) -> Path:
-    repo_root = Path(__file__).resolve().parents[4]
-    return repo_root / "apps" / "web" / "public" / "stamps" / f"non-judicial-{stamp_amount}.png"
+    filename = f"non-judicial-{stamp_amount}.png"
+    configured_dir = os.getenv("DOCUMENT_STAMP_ASSETS_DIR") or getattr(settings, "document_stamp_assets_dir", None)
+    search_roots: list[Path] = []
+
+    if configured_dir:
+        search_roots.append(Path(configured_dir))
+
+    current_file = Path(__file__).resolve()
+    for parent in current_file.parents:
+        search_roots.extend(
+            [
+                parent / "public" / "stamps",
+                parent / "app" / "public" / "stamps",
+                parent / "apps" / "web" / "public" / "stamps",
+            ]
+        )
+
+    seen: set[Path] = set()
+    for directory in search_roots:
+        if directory in seen:
+            continue
+        seen.add(directory)
+        candidate = directory / filename
+        if candidate.exists():
+            return candidate
+
+    return search_roots[0] / filename if search_roots else Path(filename)
 
 
 def _build_stamp_data_uri(stamp_amount: str) -> str | None:
     stamp_path = _stamp_asset_path(stamp_amount)
     if not stamp_path.exists():
         return None
-    encoded = base64.b64encode(stamp_path.read_bytes()).decode("ascii")
+    try:
+        encoded = base64.b64encode(stamp_path.read_bytes()).decode("ascii")
+    except OSError:
+        return None
     return f"data:image/png;base64,{encoded}"
 
 
@@ -107,6 +150,20 @@ def _validate_rental_fields_basic(params: dict) -> list[str]:
     required_name_fields = ("landlord_name", "tenant_name")
     for field in required_name_fields:
         value = _normalize_text(params.get(field))
+        if not NAME_RE.fullmatch(value) or value.isdigit():
+            errors.append(f"{field.replace('_', ' ').title()} must look like a real person name.")
+
+    signature_name_fields = (
+        ("landlord_signature", True),
+        ("tenant_signature", True),
+        ("witness_signature", False),
+    )
+    for field, required in signature_name_fields:
+        value = _normalize_text(params.get(field))
+        if not value:
+            if required:
+                errors.append(f"{field.replace('_', ' ').title()} must look like a real person name.")
+            continue
         if not NAME_RE.fullmatch(value) or value.isdigit():
             errors.append(f"{field.replace('_', ' ').title()} must look like a real person name.")
 
@@ -153,8 +210,8 @@ async def _validate_rental_fields_with_llm(params: dict) -> list[str]:
     review_fields = {
         key: params.get(key)
         for key in (
-            "landlord_name", "landlord_address", "landlord_adhar_no",
-            "tenant_name", "tenant_address", "tenant_adhar_no",
+            "landlord_name", "landlord_address",
+            "tenant_name", "tenant_address",
             "property_address", "state", "jurisdiction",
         )
     }
@@ -186,6 +243,94 @@ Fields:
     return [_normalize_text(item) for item in llm_errors if _normalize_text(item)]
 
 
+def _filter_rental_llm_errors(params: dict, llm_errors: list[str]) -> list[str]:
+    filtered: list[str] = []
+    valid_aadhaar_fields = {
+        "landlord adhar no": AADHAAR_RE.fullmatch(_normalize_aadhaar(params.get("landlord_adhar_no", ""))) is not None,
+        "tenant adhar no": AADHAAR_RE.fullmatch(_normalize_aadhaar(params.get("tenant_adhar_no", ""))) is not None,
+        "landlord aadhaar no": AADHAAR_RE.fullmatch(_normalize_aadhaar(params.get("landlord_adhar_no", ""))) is not None,
+        "tenant aadhaar no": AADHAAR_RE.fullmatch(_normalize_aadhaar(params.get("tenant_adhar_no", ""))) is not None,
+    }
+    valid_date_fields = {
+        "lease start date": _parse_supported_date(params.get("lease_start_date", "")),
+        "lease end date": _parse_supported_date(params.get("lease_end_date", "")),
+        "agreement date": _parse_supported_date(params.get("agreement_date", "")),
+    }
+    valid_address_fields = {
+        "landlord address": not any(msg.startswith("Landlord Address ") for msg in _validate_rental_fields_basic({
+            "landlord_name": "Placeholder Name",
+            "tenant_name": "Placeholder Tenant",
+            "landlord_adhar_no": "123456789012",
+            "tenant_adhar_no": "123456789012",
+            "landlord_address": params.get("landlord_address", ""),
+            "tenant_address": "Placeholder Tenant Address",
+            "property_address": "Placeholder Property Address",
+            "state": "Telangana",
+            "stamp_amount": "10",
+            "monthly_rent": "1",
+            "security_deposit": "1",
+            "rent_due_date": "1",
+            "number_of_bedrooms": "1",
+            "number_of_bathrooms": "1",
+            "notice_required_to_terminate": "1",
+            "lease_start_date": "01/01/2026",
+            "lease_end_date": "",
+            "agreement_date": "01/01/2026",
+        })),
+        "tenant address": not any(msg.startswith("Tenant Address ") for msg in _validate_rental_fields_basic({
+            "landlord_name": "Placeholder Name",
+            "tenant_name": "Placeholder Tenant",
+            "landlord_adhar_no": "123456789012",
+            "tenant_adhar_no": "123456789012",
+            "landlord_address": "Placeholder Landlord Address",
+            "tenant_address": params.get("tenant_address", ""),
+            "property_address": "Placeholder Property Address",
+            "state": "Telangana",
+            "stamp_amount": "10",
+            "monthly_rent": "1",
+            "security_deposit": "1",
+            "rent_due_date": "1",
+            "number_of_bedrooms": "1",
+            "number_of_bathrooms": "1",
+            "notice_required_to_terminate": "1",
+            "lease_start_date": "01/01/2026",
+            "lease_end_date": "",
+            "agreement_date": "01/01/2026",
+        })),
+        "property address": not any(msg.startswith("Property Address ") for msg in _validate_rental_fields_basic({
+            "landlord_name": "Placeholder Name",
+            "tenant_name": "Placeholder Tenant",
+            "landlord_adhar_no": "123456789012",
+            "tenant_adhar_no": "123456789012",
+            "landlord_address": "Placeholder Landlord Address",
+            "tenant_address": "Placeholder Tenant Address",
+            "property_address": params.get("property_address", ""),
+            "state": "Telangana",
+            "stamp_amount": "10",
+            "monthly_rent": "1",
+            "security_deposit": "1",
+            "rent_due_date": "1",
+            "number_of_bedrooms": "1",
+            "number_of_bathrooms": "1",
+            "notice_required_to_terminate": "1",
+            "lease_start_date": "01/01/2026",
+            "lease_end_date": "",
+            "agreement_date": "01/01/2026",
+        })),
+    }
+
+    for error in llm_errors:
+        normalized = _normalize_text(error).lower()
+        if any(label in normalized and is_valid for label, is_valid in valid_aadhaar_fields.items()):
+            continue
+        if any(label in normalized and is_valid for label, is_valid in valid_date_fields.items()):
+            continue
+        if any(label in normalized and is_valid for label, is_valid in valid_address_fields.items()):
+            continue
+        filtered.append(error)
+    return filtered
+
+
 async def validate_document_params(template_id: str, params: dict) -> dict:
     cleaned = {key: _normalize_text(value) for key, value in params.items()}
 
@@ -197,7 +342,10 @@ async def validate_document_params(template_id: str, params: dict) -> dict:
             cleaned[field] = _normalize_aadhaar(cleaned[field])
 
     errors = _validate_rental_fields_basic(cleaned)
-    llm_errors = await _validate_rental_fields_with_llm(cleaned)
+    llm_errors = _filter_rental_llm_errors(
+        cleaned,
+        await _validate_rental_fields_with_llm(cleaned),
+    )
     for error in llm_errors:
         if error not in errors:
             errors.append(error)
@@ -208,7 +356,10 @@ async def validate_document_params(template_id: str, params: dict) -> dict:
     cleaned["government_deposit_return_policy"] = _build_government_deposit_return_policy(
         cleaned.get("jurisdiction") or cleaned.get("state") or "the stated jurisdiction",
     )
-    cleaned["stamp_image_data_uri"] = _build_stamp_data_uri(cleaned.get("stamp_amount", ""))
+    stamp_amount = cleaned.get("stamp_amount", "")
+    cleaned["stamp_image_data_uri"] = _build_stamp_data_uri(stamp_amount)
+    cleaned["stamp_image_src"] = cleaned["stamp_image_data_uri"] or f"/stamps/non-judicial-{stamp_amount or '10'}.png"
+    cleaned["rent_due_day_label"] = _ordinal(cleaned.get("rent_due_date", ""))
     return cleaned
 
 # Template metadata — defines required/optional fields per template
@@ -242,6 +393,7 @@ TEMPLATE_REGISTRY: dict[str, dict] = {
             "jurisdiction",
             "agreement_language",
             "landlord_signature",
+            "tenant_signature",
         ],
         "optional_fields": [
             "document_format",
@@ -256,13 +408,6 @@ TEMPLATE_REGISTRY: dict[str, dict] = {
             "alteration_approval_process",
             "painting_allowed",
             "nails_and_holes_policy",
-            "renters_insurance_required",
-            "minimum_coverage_amount",
-            "landlord_insurance_policy_details",
-            "early_termination_fee",
-            "early_termination_penalty_description",
-            "notice_required_for_renewal",
-            "auto_renewal_terms",
             "smoking_allowed",
             "drug_policy_description",
             "criminal_activity_policy",

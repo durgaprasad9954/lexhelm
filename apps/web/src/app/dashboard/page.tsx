@@ -1,14 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  FileText, MessageSquare, Search, Activity,
+  FileText, MessageSquare, Search,
   ArrowRight, Scale, Sparkles, BookOpen, Shield, Landmark,
   FileSearch, Upload, Wand2, Clock, Zap, Home, Users,
 } from "lucide-react";
-import { healthCheck, listDocSessions } from "@/lib/api";
+import { listDocSessions } from "@/lib/api";
 import Link from "next/link";
 
 const container = {
@@ -29,13 +30,10 @@ function buildSearchHref(prompt: string) {
 }
 
 export default function DashboardPage() {
-  const [apiStatus, setApiStatus] = useState<"checking" | "online" | "offline">("checking");
+  const router = useRouter();
   const [docCount, setDocCount] = useState(0);
 
   useEffect(() => {
-    healthCheck()
-      .then(() => setApiStatus("online"))
-      .catch(() => setApiStatus("offline"));
     listDocSessions(100)
       .then((r) => setDocCount(r.sessions.length))
       .catch(() => {});
@@ -82,6 +80,33 @@ export default function DashboardPage() {
     { icon: Users, label: "Start Consultation", href: "/consultation", color: "text-primary", bg: "bg-primary/10" },
   ];
 
+  const helpItems = [
+    {
+      icon: FileSearch,
+      title: "Find relevant case law in seconds",
+      desc: "Ask a question in chat and review case-backed answers with linked search results.",
+      prompt: "What are a tenant's eviction rights in India?",
+    },
+    {
+      icon: Shield,
+      title: "Analyze contracts for risks",
+      desc: "Upload any agreement and ask AI to identify risky clauses, missing terms, or obligations.",
+      href: "/doc-chat",
+    },
+    {
+      icon: BookOpen,
+      title: "Draft legal documents with AI",
+      desc: "Describe what you need in plain English. AI collects details and generates a ready-to-edit document.",
+      href: "/documents",
+    },
+    {
+      icon: Landmark,
+      title: "Open your generated documents separately",
+      desc: "Saved documents stay in the dedicated documents area so you can reopen and continue editing anytime.",
+      href: "/documents?tab=saved",
+    },
+  ];
+
   return (
     <div className="min-h-full bg-white">
       <div className="relative overflow-hidden border-b border-border bg-background px-6 py-10 md:px-10 md:py-14">
@@ -98,7 +123,7 @@ export default function DashboardPage() {
           transition={{ duration: 0.5 }}
           className="relative"
         >
-          <div className="flex items-center justify-between mb-1">
+          <div className="mb-1 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Scale className="h-5 w-5 text-primary" />
@@ -112,13 +137,6 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <Badge
-              variant={apiStatus === "online" ? "default" : apiStatus === "offline" ? "destructive" : "secondary"}
-              className="gap-1.5"
-            >
-              <Activity className="h-3 w-3" />
-              API {apiStatus}
-            </Badge>
           </div>
         </motion.div>
 
@@ -191,36 +209,37 @@ export default function DashboardPage() {
 
           {features.map((f) => (
             <motion.div key={f.href} variants={item}>
-              <Link href={f.href} className="block group">
-                <Card className="relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5 h-full">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${f.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-                  <CardHeader className="relative pb-2">
-                    <div className="flex items-start gap-4">
-                      <div className={`h-10 w-10 rounded-xl ${f.iconBg} flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110`}>
-                        <f.icon className={`h-5 w-5 ${f.iconColor}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                          {f.title}
-                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
-                        </CardTitle>
-                        <CardDescription className="text-sm mt-1">{f.desc}</CardDescription>
-                      </div>
+              <Card className="group relative h-full overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg">
+                <div className={`absolute inset-0 bg-gradient-to-br ${f.color} opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
+                <CardHeader className="relative pb-2">
+                  <div className="flex items-start gap-4">
+                    <div className={`h-10 w-10 rounded-xl ${f.iconBg} flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110`}>
+                      <f.icon className={`h-5 w-5 ${f.iconColor}`} />
                     </div>
-                  </CardHeader>
-                  <CardContent className="relative pt-0">
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {f.examples.map((ex) => (
-                        <Link key={ex} href={buildSearchHref(ex)}>
-                          <span className="inline-flex text-[11px] font-medium text-muted-foreground bg-muted/80 px-2 py-0.5 rounded-md transition-colors hover:bg-primary hover:text-white">
-                            {ex}
-                          </span>
-                        </Link>
-                      ))}
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                        {f.title}
+                        <ArrowRight className="h-3.5 w-3.5 -translate-x-2 text-muted-foreground opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100" />
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-sm">{f.desc}</CardDescription>
                     </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                  </div>
+                </CardHeader>
+                <CardContent className="relative space-y-4 pt-0">
+                  <div className="flex flex-wrap gap-1.5">
+                    {f.examples.map((ex) => (
+                      <button
+                        key={ex}
+                        type="button"
+                        onClick={() => router.push(buildSearchHref(ex))}
+                        className="inline-flex cursor-pointer rounded-md bg-muted/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary hover:text-white"
+                      >
+                        {ex}
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             </motion.div>
           ))}
         </motion.div>
@@ -231,59 +250,47 @@ export default function DashboardPage() {
           transition={{ delay: 0.5, duration: 0.4 }}
           className="mt-6"
         >
-          <Card className="bg-card border-primary/15">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm font-semibold">How can LexHelm help you?</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <FileSearch className="h-3.5 w-3.5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Find relevant case law in seconds</p>
-                      <p className="text-xs text-muted-foreground">Ask a question in chat and review case-backed answers with linked search results.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <Shield className="h-3.5 w-3.5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Analyze contracts for risks</p>
-                      <p className="text-xs text-muted-foreground">Upload any agreement and ask AI to identify risky clauses, missing terms, or obligations.</p>
-                    </div>
-                  </div>
+            <Card className="bg-card border-primary/15">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-sm font-semibold">How can LexHelm help you?</CardTitle>
                 </div>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <BookOpen className="h-3.5 w-3.5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Draft legal documents with AI</p>
-                      <p className="text-xs text-muted-foreground">Describe what you need in plain English. AI collects details and generates a ready-to-edit document.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <Landmark className="h-3.5 w-3.5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Open your generated documents separately</p>
-                      <p className="text-xs text-muted-foreground">Saved documents stay in the dedicated documents area instead of the home dashboard.</p>
-                    </div>
-                  </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {helpItems.map((item) => {
+                    const content = (
+                      <div className="flex items-start gap-3 rounded-xl border border-border bg-background px-4 py-3 transition-colors hover:border-primary/25 hover:bg-accent/35">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                          <item.icon className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{item.title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{item.desc}</p>
+                        </div>
+                      </div>
+                    );
+
+                    return item.prompt ? (
+                      <button
+                        key={item.title}
+                        type="button"
+                        onClick={() => router.push(buildSearchHref(item.prompt!))}
+                        className="cursor-pointer text-left"
+                      >
+                        {content}
+                      </button>
+                    ) : (
+                      <Link key={item.title} href={item.href!} className="block">
+                        {content}
+                      </Link>
+                    );
+                  })}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
       </div>
     </div>
   );

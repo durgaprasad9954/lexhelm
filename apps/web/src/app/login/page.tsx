@@ -17,7 +17,7 @@ const fadeUp = (delay: number) => ({
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, googleClientId, loginWithGoogle } = useAuth();
+  const { isAuthenticated, isLoading, googleClientId, loginWithGoogle, loginAsDeveloper } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState<"checking" | "online" | "offline">("checking");
 
@@ -158,15 +158,15 @@ export default function LoginPage() {
               className="mt-8 flex items-center gap-6 text-xs text-muted-foreground"
             >
               {[
-                { color: "bg-emerald-500", label: "100% Secure" },
-                { color: "bg-blue-500", label: "Available 24/7" },
-                { color: "bg-violet-500", label: "All Indian Laws" },
+                { color: "bg-emerald-500", label: "100% Secure", delay: 0 },
+                { color: "bg-blue-500", label: "Available 24/7", delay: 0.2 },
+                { color: "bg-violet-500", label: "All Indian Laws", delay: 0.4 },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-1.5">
                   <motion.div
                     className={`h-1.5 w-1.5 rounded-full ${item.color}`}
                     animate={{ scale: [1, 1.3, 1] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: Math.random() }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: item.delay }}
                   />
                   {item.label}
                 </div>
@@ -262,36 +262,21 @@ export default function LoginPage() {
                       Having trouble with Google Sign-In?
                     </p>
                     <button
-                      onClick={() => {
-                        // Create a mock dev session
-                        const devUser = {
-                          id: "dev-user-001",
-                          email: "dev@lexhelm.local",
-                          name: "Developer",
-                          picture: undefined,
-                        };
-                        const devOrg = {
-                          id: "dev-org-001",
-                          name: "LexHelm Dev",
-                        };
-                        const devToken = "dev-token-" + Date.now();
-                        
-                        // Store in localStorage (same format as auth.tsx)
-                        localStorage.setItem("lexhelm_auth", JSON.stringify({ 
-                          user: devUser, 
-                          org: devOrg, 
-                          token: devToken 
-                        }));
-                        
-                        // Also set beta status as approved to bypass waitlist
-                        localStorage.setItem("lexhelm_beta_status", JSON.stringify({
-                          email: devUser.email,
-                          status: "approved",
-                          ts: Date.now(),
-                        }));
-                        
-                        // Reload to trigger auth state
-                        window.location.reload();
+                      onClick={async () => {
+                        try {
+                          await loginAsDeveloper();
+                          localStorage.setItem("lexhelm_beta_status", JSON.stringify({
+                            email: "dev@lexhelm.local",
+                            status: "approved",
+                            ts: Date.now(),
+                          }));
+                          toast.success("Signed in with developer test account.");
+                          router.replace("/dashboard");
+                        } catch (err) {
+                          const message = err instanceof Error ? err.message : "Developer login failed";
+                          setLoginError(message);
+                          toast.error(message);
+                        }
                       }}
                       className="w-full py-2 px-4 rounded-lg border border-border bg-accent/50 hover:bg-accent text-sm font-medium text-foreground transition-colors"
                     >

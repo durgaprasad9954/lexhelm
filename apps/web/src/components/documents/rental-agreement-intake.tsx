@@ -102,6 +102,7 @@ const FIELD_SECTIONS = [
       { name: "lease_end_date", label: "Lease End Date", type: "text", required: false, placeholder: "14 May 2027" },
       { name: "lease_duration_months", label: "Lease Duration in Months", type: "text", required: false, placeholder: "11" },
       { name: "renewal_option_allowed", label: "Renewal Option Allowed", type: "select", required: true, options: ["Yes", "No"] },
+      { name: "notice_required_to_terminate", label: "Notice Required to Vacate (Days)", type: "text", required: true, placeholder: "30" },
     ],
   },
   {
@@ -130,20 +131,6 @@ const FIELD_SECTIONS = [
     ],
   },
   {
-    title: "Insurance and Termination",
-    description: "Cover insurance requirements, notice periods, and early termination terms.",
-    fields: [
-      { name: "renters_insurance_required", label: "Renter's Insurance Required", type: "select", required: true, options: ["Yes", "No"] },
-      { name: "minimum_coverage_amount", label: "Minimum Coverage Amount", type: "text", required: false },
-      { name: "landlord_insurance_policy_details", label: "Landlord Insurance Policy Details", type: "textarea", required: false },
-      { name: "notice_required_to_terminate", label: "Notice Required to Terminate (Days)", type: "text", required: true, placeholder: "30" },
-      { name: "early_termination_fee", label: "Early Termination Fee", type: "text", required: false },
-      { name: "early_termination_penalty_description", label: "Early Termination Penalty Description", type: "textarea", required: false },
-      { name: "notice_required_for_renewal", label: "Notice Required for Renewal (Days)", type: "text", required: false },
-      { name: "auto_renewal_terms", label: "Auto-Renewal Terms", type: "textarea", required: false },
-    ],
-  },
-  {
     title: "Additional Clauses",
     description: "Keep extra policies minimal and only expand them when smoking is allowed.",
     fields: [
@@ -165,7 +152,8 @@ const FIELD_SECTIONS = [
       { name: "jurisdiction", label: "Jurisdiction", type: "text", required: true, placeholder: "Tamil Nadu, India" },
       { name: "agreement_language", label: "Agreement Language", type: "select", required: true, options: ["English", "Spanish", "Other"] },
       { name: "document_version_number", label: "Document Version Number", type: "text", required: false, placeholder: "1.0" },
-      { name: "landlord_signature", label: "Landlord Signature", type: "text", required: true, placeholder: "Landlord name or signatory line" },
+      { name: "landlord_signature", label: "SignatureLandlord ", type: "text", required: true, placeholder: "Landlord name or signatory line" },
+      { name: "tenant_signature", label: "Tenant Signature", type: "text", required: true, placeholder: "Tenant name or signatory line" },
       { name: "witness_signature", label: "Witness Signature", type: "text", required: false, placeholder: "Witness name or signatory line" },
     ],
   },
@@ -178,7 +166,6 @@ const STEP_TITLE_MAP: Record<string, string> = {
   "Lease Terms": "Lease Terms",
   "Rent and Utilities": "Rent & Utilities",
   "Occupancy and Alterations": "Room Rules",
-  "Insurance and Termination": "Insurance & Exit",
   "Additional Clauses": "Policies",
   "Document Metadata and Signing": "Signing",
 };
@@ -216,14 +203,7 @@ const INITIAL_VALUES: RentalAgreementFormValues = {
   alteration_approval_process: "",
   painting_allowed: "No",
   nails_and_holes_policy: "",
-  renters_insurance_required: "No",
-  minimum_coverage_amount: "",
-  landlord_insurance_policy_details: "",
   notice_required_to_terminate: "30",
-  early_termination_fee: "",
-  early_termination_penalty_description: "",
-  notice_required_for_renewal: "",
-  auto_renewal_terms: "",
   smoking_allowed: "No",
   drug_policy_description: "",
   criminal_activity_policy: "",
@@ -237,6 +217,7 @@ const INITIAL_VALUES: RentalAgreementFormValues = {
   agreement_language: "English",
   document_version_number: "1.0",
   landlord_signature: "",
+  tenant_signature: "",
   witness_signature: "",
 };
 
@@ -272,11 +253,9 @@ function isNumericField(fieldName: string) {
 }
 
 const CONDITIONAL_FIELDS: Record<string, string[]> = {
-  renewal_option_allowed: ["notice_required_for_renewal", "auto_renewal_terms"],
   subletting_allowed: ["subletting_terms"],
   alterations_allowed: ["alteration_approval_process"],
   painting_allowed: ["nails_and_holes_policy"],
-  renters_insurance_required: ["minimum_coverage_amount", "landlord_insurance_policy_details"],
   cleaning_deposit_required: ["cleaning_deposit_amount"],
 };
 
@@ -499,28 +478,28 @@ export function RentalAgreementIntake({
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-border/60">
+    <div className="space-y-5 md:space-y-6">
+      <Card className="overflow-hidden border-border/60 bg-white/90 shadow-[0_20px_70px_rgba(15,23,42,0.06)] backdrop-blur">
         <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="bg-background p-6 md:p-8">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground">
+          <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.96))] p-5 md:p-8">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#D8E0EE] bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
               <Stamp className="h-3.5 w-3.5" />
               Guided Rental Agreement
             </div>
-            <h2 className="mt-4 max-w-xl text-3xl font-semibold tracking-tight text-foreground">
+            <h2 className="mt-4 max-w-xl text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
               Collect every lease detail in one clean intake instead of a back-and-forth bot chat.
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground md:text-[15px]">
               This flow follows your rental agreement checklist, lets the user choose the exact non-judicial stamp image, and keeps the generated document aligned with the stamp-paper references you shared.
             </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="mt-6 grid gap-3 md:grid-cols-3">
               {[
                 { icon: Landmark, label: "Stamp options", value: "Rs.10 / 20 / 50 / 100" },
                 { icon: FileText, label: "Reference styles", value: "Residential, room, house, commercial" },
                 { icon: FileCheck2, label: "Structured intake", value: "Sequential checkout-style steps" },
               ].map((item) => (
-                <div key={item.label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-                  <item.icon className="h-4 w-4 text-foreground" />
+                <div key={item.label} className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                  <item.icon className="h-4 w-4 text-primary" />
                   <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
                   <p className="mt-1 text-sm font-medium text-foreground">{item.value}</p>
                 </div>
@@ -528,8 +507,8 @@ export function RentalAgreementIntake({
             </div>
           </div>
 
-          <div className="relative min-h-[320px] border-t border-border/60 bg-background p-4 lg:border-l lg:border-t-0 flex flex-col items-center justify-center gap-4">
-            <div className="absolute right-6 top-6 rounded-full bg-card px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground shadow-sm z-10">
+          <div className="relative flex min-h-[320px] flex-col items-center justify-center gap-4 border-t border-border/60 bg-[radial-gradient(circle_at_top,rgba(180,83,9,0.08),transparent_42%),linear-gradient(180deg,rgba(248,250,252,0.9),rgba(255,248,235,0.85))] p-4 md:p-6 lg:border-l lg:border-t-0">
+            <div className="absolute right-4 top-4 z-10 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground shadow-sm md:right-6 md:top-6">
               Stamp Preview
             </div>
             <div className="w-full max-w-[640px] rounded-[1.75rem] border border-border bg-white p-4 shadow-[0_18px_45px_rgba(65,92,164,0.08)]">
@@ -540,16 +519,16 @@ export function RentalAgreementIntake({
             </div>
             <p className="text-xs text-muted-foreground font-medium">Selected Stamp Value: Rs.{values.stamp_amount}</p>
             {/* Stamp quick selectors */}
-            <div className="flex gap-2 flex-wrap justify-center">
+            <div className="flex flex-wrap justify-center gap-2">
               {STAMP_OPTIONS.map((amount) => (
                 <button
                   key={amount}
                   type="button"
-                  onClick={() => updateValue('stamp_amount', amount)}
+                  onClick={() => updateValue("stamp_amount", amount)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all ${
                     values.stamp_amount === amount
-                      ? 'bg-[#415CA4] text-white border-[#415CA4] shadow-sm'
-                      : 'bg-card text-foreground border-border hover:border-[#415CA4]/40'
+                      ? "border-primary bg-primary text-white shadow-sm"
+                      : "border-border bg-card text-foreground hover:border-primary/40"
                   }`}
                 >
                   Rs.{amount}
@@ -560,7 +539,7 @@ export function RentalAgreementIntake({
         </div>
       </Card>
 
-      <Card className="border-border/60 bg-card">
+      <Card className="border-border/60 bg-card shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
         <CardHeader className="pb-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -595,9 +574,9 @@ export function RentalAgreementIntake({
                   disabled={!canNavigateToStep(index)}
                   className={`rounded-2xl border px-4 py-4 text-left transition-all ${
                     active
-                      ? "border-primary bg-[#F3F5FA] shadow-sm"
+                      ? "border-primary bg-[#EEF4FF] shadow-sm"
                       : canNavigateToStep(index)
-                        ? "border-border bg-white hover:border-primary/25 hover:bg-[#F3F5FA]/60"
+                        ? "border-border bg-white hover:border-primary/25 hover:bg-[#EEF4FF]/60"
                         : "border-border/70 bg-white/70 opacity-70"
                   }`}
                 >
@@ -624,18 +603,18 @@ export function RentalAgreementIntake({
           </div>
 
           {activeStep < visibleSections.length ? (
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
               <Card className="border-border/60 bg-white shadow-sm">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-base">{visibleSections[activeStep].title}</CardTitle>
                   <CardDescription>{visibleSections[activeStep].description}</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-5">
+                <CardContent className="grid gap-5 md:grid-cols-2">
                   {getStepFields(visibleSections[activeStep].fields as FieldDefinition[], values).map(renderField)}
                 </CardContent>
               </Card>
 
-              <Card className="border-border/60 bg-[#F3F5FA] shadow-sm">
+              <Card className="border-border/60 bg-[linear-gradient(180deg,#EEF4FF,#FFF8EB)] shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Step summary</CardTitle>
                   <CardDescription>
@@ -663,7 +642,7 @@ export function RentalAgreementIntake({
               </Card>
             </div>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
               <Card className="border-border/60 bg-white shadow-sm">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-base">Review</CardTitle>
@@ -671,7 +650,7 @@ export function RentalAgreementIntake({
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   {visibleSections.map((section) => (
-                    <div key={section.title} className="rounded-2xl border border-border bg-[#F3F5FA] p-4">
+                    <div key={section.title} className="rounded-2xl border border-border bg-[#F8FAFC] p-4">
                       <p className="text-sm font-semibold text-foreground">{section.title}</p>
                       <div className="mt-3 space-y-2">
                         {getStepFields(section.fields as FieldDefinition[], values).map((field) => (
@@ -686,7 +665,7 @@ export function RentalAgreementIntake({
                 </CardContent>
               </Card>
 
-              <Card className="border-border/60 bg-[#F3F5FA] shadow-sm">
+              <Card className="border-border/60 bg-[linear-gradient(180deg,#EEF4FF,#FFF8EB)] shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Ready to generate</CardTitle>
                   <CardDescription>Final check before document generation.</CardDescription>
@@ -706,7 +685,7 @@ export function RentalAgreementIntake({
         </CardContent>
       </Card>
 
-      <Card className="border-border/60 bg-background">
+      <Card className="border-border/60 bg-white/80 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Step actions</CardTitle>
           <CardDescription>
@@ -719,7 +698,7 @@ export function RentalAgreementIntake({
               ? `Current step: ${visibleSections[activeStep].title}`
               : "Current step: Review"}
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          """<div className="mt-4 flex flex-wrap gap-3">
             <Button onClick={goPrevious} disabled={activeStep === 0 || generating} className="rounded-xl px-5">
               <ChevronLeft className="h-4 w-4" />
               Previous
@@ -749,7 +728,7 @@ export function RentalAgreementIntake({
                 Back to AI drafting
               </Button>
             ) : null}
-          </div>
+          </div>"""
         </CardContent>
       </Card>
     </div>

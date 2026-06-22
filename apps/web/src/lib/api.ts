@@ -56,6 +56,11 @@ export interface AuthGoogleResponse {
   org: { id: string; name: string };
 }
 
+export interface DevLoginRequest {
+  email?: string;
+  name?: string;
+}
+
 /** Send Google ID token to backend, get back a signed app JWT. */
 export const loginWithGoogleBackend = async (credential: string) => {
   console.log(`[API] Sending auth request to ${API_BASE}/auth/google`);
@@ -76,6 +81,19 @@ export const loginWithGoogleBackend = async (credential: string) => {
     console.error("[API] Network or parsing error:", err);
     throw err;
   }
+};
+
+export const loginWithDevBackend = async (payload?: DevLoginRequest) => {
+  const res = await fetch(`${API_BASE}/auth/dev`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-API-TOKEN": API_TOKEN },
+    body: JSON.stringify(payload ?? {}),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `Dev auth error ${res.status}`);
+  }
+  return res.json() as Promise<AuthGoogleResponse>;
 };
 
 // ---------- Health ----------
@@ -280,6 +298,20 @@ export const saveDraftChatContent = (sessionId: string, content: string) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content }),
   });
+export const saveGeneratedDraftSession = (
+  templateId: string,
+  collectedFields: Record<string, string>,
+  content: string,
+) =>
+  apiFetch<DraftChatResponse>("/draft-chat/save-generated", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      template_id: templateId,
+      collected_fields: collectedFields,
+      content,
+    }),
+  });
 export const getDraftChatSession = (id: string) =>
   apiFetch<DraftChatSessionDetail>(`/draft-chat/${id}`);
 export const listDraftChatSessions = (limit = 20) =>
@@ -297,6 +329,9 @@ export interface SendDocumentEmailRequest {
   note?: string;
   document_html: string;
   document_title: string;
+  gmail_access_token?: string;
+  sender_email?: string;
+  sender_name?: string;
 }
 export const sendDocumentEmail = (req: SendDocumentEmailRequest) =>
   apiFetch<{ message: string }>("/email/send-document", {

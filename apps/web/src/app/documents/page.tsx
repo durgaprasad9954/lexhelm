@@ -1,6 +1,6 @@
 "use client";
 import { startTransition, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,11 @@ import {
   generateDocument, listTemplates, parseContract,
   startDraftChat, sendDraftMessage, confirmDraftChat,
   refineDraftDocument, sendDocumentEmail,
-  getDraftChatSession, listDraftChatSessions, saveDraftChatContent, deleteDraftChatSession,
+  getDraftChatSession, listDraftChatSessions, saveDraftChatContent, saveGeneratedDraftSession, deleteDraftChatSession,
   type Template, type DraftChatResponse, type DraftChatSessionDetail, type DraftChatSessionSummary,
 } from "@/lib/api";
 import { LegalEditor, plainTextToHtml } from "@/components/editor/legal-editor";
+import { useAuth } from "@/lib/auth";
 import { useSidebar } from "@/lib/sidebar-context";
 import { RentalAgreementIntake, type RentalAgreementFormValues } from "@/components/documents/rental-agreement-intake";
 
@@ -85,6 +86,8 @@ function getInitialDraftRoute() {
 }
 
 export default function DocumentsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [initialRoute] = useState(getInitialDraftRoute);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -100,6 +103,17 @@ export default function DocumentsPage() {
   const resolvedActiveTab = searchTab === "saved" || searchTab === "templates" || searchTab === "parse" || searchTab === "ai-draft"
     ? searchTab
     : activeTab;
+
+  const setRouteTab = useCallback((tab: string, options?: { resume?: string | null }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    if (options?.resume) {
+      params.set("resume", options.resume);
+    } else {
+      params.delete("resume");
+    }
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [pathname, router, searchParams]);
 
   const refreshSavedDocuments = useCallback(() => {
     setSavedDocumentsLoading(true);
@@ -142,26 +156,28 @@ export default function DocumentsPage() {
     setPreselectedTemplate(templateId);
     setInitialDraftPrompt(undefined);
     setActiveTab("ai-draft");
+    setRouteTab("ai-draft");
   };
 
   const handleOpenSavedDocument = (sessionId: string) => {
     setResumeSessionId(sessionId);
     setActiveTab("ai-draft");
+    setRouteTab("ai-draft", { resume: sessionId });
   };
 
   return (
     <div className="min-h-full">
       {/* Header — hidden in editor mode */}
       {!editorMode && (
-        <div className="border-b border-border bg-background px-6 py-8 md:px-10">
+        <div className="border-b border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.96))] px-4 py-6 md:px-10 md:py-8">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="flex items-center gap-3"
+            className="flex flex-col items-start gap-3 sm:flex-row sm:items-center"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-card">
-              <FileText className="h-5 w-5 text-foreground" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+              <FileText className="h-5 w-5 text-primary" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Create a Document</h1>
@@ -171,8 +187,18 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      <div className={editorMode ? "p-3" : "p-6 md:p-10"}>
-        <Tabs value={resolvedActiveTab} onValueChange={setActiveTab} className="space-y-6">
+      <div className={editorMode ? "p-2 sm:p-3" : "p-4 md:p-8 lg:p-10"}>
+        <Tabs
+          value={resolvedActiveTab}
+          onValueChange={(nextTab) => {
+            setActiveTab(nextTab);
+            if (nextTab !== "ai-draft") {
+              setResumeSessionId(null);
+            }
+            setRouteTab(nextTab, { resume: nextTab === "ai-draft" ? resumeSessionId : null });
+          }}
+          className="space-y-6"
+        >
           {!editorMode && (
             <TabsList className="bg-muted/50">
               <TabsTrigger value="ai-draft" className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
@@ -200,7 +226,10 @@ export default function DocumentsPage() {
                   setPreselectedTemplate(undefined);
                   setInitialDraftPrompt(undefined);
                 }}
-                onSessionLoaded={() => setResumeSessionId(null)}
+                onSessionLoaded={() => {
+                  setResumeSessionId(null);
+                  setRouteTab("ai-draft");
+                }}
                 onSavedDocumentsChange={refreshSavedDocuments}
                 onEditorModeChange={setEditorMode}
               />
@@ -403,6 +432,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
   onSavedDocumentsChange: () => void;
   onEditorModeChange: (v: boolean) => void;
 }) {
+  const { user } = useAuth();
   const { autoCollapse, autoExpand } = useSidebar();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -642,15 +672,22 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
 
   const handleSaveDocument = async () => {
     const html = editorHtml || generatedContent || "";
-    if (!sessionId || !html.trim() || documentSaving) return;
+    if (!html.trim() || documentSaving) return;
+    if (!hasUnsavedChanges) {
+      toast.success("Document is already saved in Your Documents.");
+      return;
+    }
     setDocumentSaving(true);
     try {
-      const res = await saveDraftChatContent(sessionId, html);
+      const res = sessionId
+        ? await saveDraftChatContent(sessionId, html)
+        : await saveGeneratedDraftSession(templateId || "custom", editableFields, html);
       const resolvedHtml = res.generated_content
         ? (res.generated_content.trim().startsWith("<")
           ? res.generated_content
           : plainTextToHtml(res.generated_content))
         : html;
+      setSessionId(res.session_id);
       setGeneratedContent(res.generated_content ?? html);
       setEditorHtml(resolvedHtml);
       setSavedEditorHtml(resolvedHtml);
@@ -714,6 +751,8 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
         note: emailNote || undefined,
         document_html: html,
         document_title: docTitle,
+        sender_email: user?.email,
+        sender_name: user?.name,
       });
       toast.success("Document sent successfully");
       setShowEmailDialog(false);
@@ -757,8 +796,8 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
         className="space-y-3"
       >
         {/* Top Bar */}
-        <div className="flex items-center justify-between rounded-xl border border-border bg-card p-2.5 shadow-sm">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-2.5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" size="sm" onClick={resetChat} className="gap-1.5 text-xs">
               <ArrowLeft className="h-3.5 w-3.5" /> New Draft
             </Button>
@@ -772,7 +811,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
               </Badge>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
             <Button
               variant="ghost"
               size="sm"
@@ -800,11 +839,11 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
               variant="outline"
               size="sm"
               onClick={handleSaveDocument}
-              disabled={!sessionId || !hasUnsavedChanges || documentSaving}
+              disabled={!currentDocumentHtml.trim() || documentSaving}
               className="gap-1.5 text-xs"
               title="Save document to your account"
             >
-              {documentSaving ? "Saving..." : "Save"}
+              {documentSaving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
             </Button>
             <Button variant="ghost" size="sm" onClick={copyContent} className="gap-1.5 text-xs" title="Copy to clipboard">
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -909,14 +948,19 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
         </AnimatePresence>
 
         {/* Editor Area */}
-        <div className="flex gap-3" style={{ height: pendingEdit ? "calc(100vh - 380px)" : "calc(100vh - 100px)" }}>
+        <div
+          className="flex flex-col gap-3 lg:flex-row"
+          style={{
+            minHeight: pendingEdit ? "calc(100vh - 380px)" : "calc(100vh - 140px)",
+          }}
+        >
           {/* Left: Refinement Chat Panel */}
           {showRefineChat && (
             <motion.div
               initial={{ opacity: 0, x: -16, width: 0 }}
               animate={{ opacity: 1, x: 0, width: 320 }}
               exit={{ opacity: 0, x: -16, width: 0 }}
-              className="shrink-0 border border-border rounded-xl overflow-hidden flex flex-col bg-card shadow-sm hidden lg:flex"
+              className="hidden shrink-0 overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:flex lg:flex-col"
             >
               <div className="border-b border-border px-4 py-3 bg-accent/20">
                 <h3 className="text-xs font-semibold flex items-center gap-2 uppercase tracking-wider text-muted-foreground">
@@ -1017,7 +1061,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
               initial={{ opacity: 0, x: -16, width: 0 }}
               animate={{ opacity: 1, x: 0, width: 280 }}
               exit={{ opacity: 0, x: -16, width: 0 }}
-              className="shrink-0 border border-border rounded-xl overflow-hidden flex flex-col bg-card shadow-sm hidden lg:flex"
+              className="hidden shrink-0 overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:flex lg:flex-col"
             >
               <div className="border-b border-border px-4 py-3 bg-accent/20">
                 <h3 className="text-xs font-semibold flex items-center gap-2 uppercase tracking-wider text-muted-foreground">
@@ -1057,7 +1101,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
           )}
 
           {/* Right: Rich Text Editor */}
-          <div className={`flex-1 border rounded-xl overflow-hidden flex flex-col bg-card shadow-sm transition-all duration-500 ${
+          <div className={`flex-1 overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-500 ${
             editorFlash ? "border-primary ring-2 ring-primary/20" : "border-border"
           }`}>
             {editorFlash && (
@@ -1075,6 +1119,37 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
           </div>
         </div>
 
+        <div className="sticky bottom-2 z-20 mt-2 flex gap-2 rounded-2xl border border-border bg-background/95 p-2 shadow-lg backdrop-blur lg:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSaveDocument}
+            disabled={!currentDocumentHtml.trim() || documentSaving}
+            className="flex-1 gap-1.5 text-xs"
+          >
+            {documentSaving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => exportEditorAsDocx(editorHtml || generatedContent || "", docTitle)}
+            className="flex-1 gap-1.5 text-xs"
+          >
+            <FileDown className="h-3.5 w-3.5" /> DOCX
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!emailSubject) setEmailSubject(templateId ? TEMPLATE_LABELS[templateId] || docTitle : docTitle);
+              setShowEmailDialog(true);
+            }}
+            className="flex-1 gap-1.5 text-xs"
+          >
+            <Mail className="h-3.5 w-3.5" /> Gmail
+          </Button>
+        </div>
+
         {/* Email Dialog */}
         <AnimatePresence>
           {showEmailDialog && (
@@ -1089,7 +1164,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
                 initial={{ opacity: 0, scale: 0.95, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 8 }}
-                className="w-full max-w-lg mx-4"
+                className="mx-4 w-full max-w-lg"
               >
                 <Card className="shadow-2xl">
                   <CardHeader className="pb-3">
@@ -1105,7 +1180,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
                       </Button>
                     </div>
                     <CardDescription className="text-xs">
-                      Send this document directly to your client with Gmail delivery, and notify the admin Slack channel automatically.
+                      Send this document directly to your client with LexHelm mail delivery.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -1162,7 +1237,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
                         ) : (
                           <Send className="h-3.5 w-3.5" />
                         )}
-                        {emailSending ? "Sending..." : "Send via Gmail"}
+                        {emailSending ? "Sending..." : "Send Document"}
                       </Button>
                       <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
                         Cancel
@@ -1269,9 +1344,9 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
 
   // ── Chat Phase (collecting fields) ──
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-col gap-4 lg:flex-row">
       {/* Chat column */}
-      <div className="flex-1 flex flex-col border border-border rounded-xl overflow-hidden" style={{ height: "calc(100vh - 290px)" }}>
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border" style={{ minHeight: "calc(100vh - 290px)" }}>
         {/* Chat header */}
         <div className="border-b border-border px-4 py-2.5 flex items-center justify-between shrink-0 bg-accent/20">
           <div className="flex items-center gap-2">
@@ -1370,7 +1445,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
           <div className="border-t border-border p-3 shrink-0">
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-              className="flex gap-2 max-w-2xl mx-auto"
+              className="mx-auto flex max-w-2xl flex-col gap-2 sm:flex-row"
             >
               <Textarea
                 placeholder={phase === "confirm" ? "Want to change anything? Or click Generate Document..." : "Type your response..."}
@@ -1386,7 +1461,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
                 className="resize-none min-h-[44px] rounded-xl"
                 disabled={sending}
               />
-              <Button type="submit" size="icon" disabled={sending || !input.trim()} className="rounded-xl h-11 w-11 shrink-0">
+              <Button type="submit" size="icon" disabled={sending || !input.trim()} className="h-11 w-11 shrink-0 rounded-xl self-end sm:self-auto">
                 <Send className="h-4 w-4" />
               </Button>
             </form>
@@ -1399,8 +1474,8 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
         <motion.div
           initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
-          className="w-72 border border-border rounded-xl p-5 space-y-4 shrink-0 hidden lg:block overflow-y-auto"
-          style={{ height: "calc(100vh - 290px)" }}
+          className="hidden w-72 shrink-0 space-y-4 overflow-y-auto rounded-xl border border-border p-5 lg:block"
+          style={{ minHeight: "calc(100vh - 290px)" }}
         >
           <h3 className="font-semibold text-sm flex items-center gap-2">
             <div className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -1559,7 +1634,7 @@ function TemplatesTab({ templates, onChatWithTemplate }: {
             <CardContent className="space-y-3 flex-1 flex flex-col justify-end">
               {t.template_id === "rental_agreement" && (
                 <div className="rounded-xl border border-border bg-background p-3 text-xs text-foreground">
-                  Includes guided intake, stamp options for Rs.20, Rs.50, Rs.80, Rs.100, and reference formats for residential, room, house, and commercial leases.
+                  Includes guided intake, stamp options for Rs.10, Rs.20, Rs.50, Rs.100, and reference formats for residential, room, house, and commercial leases.
                 </div>
               )}
               <div className="flex flex-wrap gap-1.5">

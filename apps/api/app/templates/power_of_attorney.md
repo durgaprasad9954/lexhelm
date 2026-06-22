@@ -22,11 +22,19 @@ I, **{{ principal_name }}**{% if principal_address %}, residing at {{ principal_
 4. The Attorney shall not delegate the powers conferred herein to any third party.
 5. All acts done by the Attorney within the scope of this Power of Attorney shall be binding on the Principal.
 
+## DUTIES OF THE ATTORNEY
+
+The Attorney shall act honestly, in good faith, and only within the powers expressly granted herein. The Attorney shall maintain proper records of material acts done on behalf of the Principal and shall not use the authority conferred for personal benefit inconsistent with the interests of the Principal.
+
 {% if scope_limitations %}
 ## LIMITATIONS
 
 {{ scope_limitations }}
 {% endif %}
+
+## GOVERNING LAW
+
+This Power of Attorney shall be interpreted in accordance with the applicable laws of India and any competent local jurisdiction relevant to its execution and use.
 
 ---
 

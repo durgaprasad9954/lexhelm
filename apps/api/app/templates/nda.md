@@ -35,23 +35,37 @@ The Receiving Party agrees to:
 1. Hold the Confidential Information in strict confidence;
 2. Not disclose the Confidential Information to any third party without prior written consent;
 3. Use the Confidential Information solely for the Purpose described above;
-4. Take reasonable measures to protect the secrecy of the Confidential Information.
+4. Take reasonable measures to protect the secrecy of the Confidential Information;
+5. Restrict access to those employees, consultants, or advisors who have a legitimate need to know and who are bound by confidentiality obligations no less stringent than those contained herein;
+6. Promptly notify the Disclosing Party upon becoming aware of any unauthorised access, disclosure, misuse, or loss of Confidential Information.
 
-## 4. TERM
+## 4. PERMITTED DISCLOSURE
+
+The Receiving Party may disclose Confidential Information only where such disclosure is required by law, regulation, or valid court order, provided that, to the extent legally permissible, the Receiving Party gives prompt notice to the Disclosing Party so that appropriate protective measures may be sought.
+
+## 5. TERM
 
 This Agreement shall remain in effect for a period of **{{ duration_years | default("2") }} years** from the date of execution, unless terminated earlier by mutual written consent.
 
-## 5. RETURN OF INFORMATION
+## 6. RETURN OF INFORMATION
 
 Upon termination or upon request, the Receiving Party shall promptly return or destroy all Confidential Information and any copies thereof.
 
-## 6. REMEDIES
+## 7. INTELLECTUAL PROPERTY
 
-The parties acknowledge that breach of this Agreement may cause irreparable harm, and the Disclosing Party shall be entitled to seek injunctive relief in addition to any other remedies available at law.
+All Confidential Information shall remain the sole property of the Disclosing Party. No licence, assignment, transfer, or other right in respect of patents, copyrights, trademarks, trade secrets, or other intellectual property rights is granted or implied by disclosure under this Agreement.
 
-## 7. GOVERNING LAW
+## 8. REMEDIES
+
+The parties acknowledge that breach of this Agreement may cause irreparable harm for which monetary damages alone may not be an adequate remedy, and the Disclosing Party shall be entitled to seek injunctive or equitable relief in addition to any other remedies available at law.
+
+## 9. GOVERNING LAW
 
 This Agreement shall be governed by the laws of **{{ governing_law | default("India") }}**{% if jurisdiction %}, and any disputes shall be subject to the exclusive jurisdiction of the courts at **{{ jurisdiction }}**{% endif %}.
+
+## 10. GENERAL
+
+This Agreement constitutes the entire understanding between the parties in relation to confidentiality and supersedes prior discussions on that subject. Any amendment shall be valid only if made in writing and signed by both parties. If any provision is held invalid, the remaining provisions shall continue in full force and effect.
 
 ---
 

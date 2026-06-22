@@ -1,4 +1,5 @@
 "use client";
+import { mergeAttributes, Node } from "@tiptap/core";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -18,6 +19,30 @@ import { EditorToolbar } from "./editor-toolbar";
 
 // Configure marked for legal document rendering
 marked.setOptions({ breaks: true, gfm: true });
+
+const LegalImage = Node.create({
+  name: "image",
+  group: "block",
+  draggable: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      src: { default: null },
+      alt: { default: null },
+      title: { default: null },
+      style: { default: null },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: "img[src]" }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ["img", mergeAttributes(HTMLAttributes)];
+  },
+});
 
 interface LegalEditorProps {
   content: string;
@@ -51,6 +76,7 @@ export function LegalEditor({
   const initialContent = isHtml ? content : plainTextToHtml(content);
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3, 4] },
@@ -68,6 +94,7 @@ export function LegalEditor({
       TableRow,
       TableCell,
       TableHeader,
+      LegalImage,
       TextStyle,
       FontFamily,
     ],
@@ -110,7 +137,7 @@ export function LegalEditor({
     <div className={`flex flex-col h-full ${className}`}>
       {editable && editor && <EditorToolbar editor={editor} />}
       <div className="flex-1 overflow-y-auto bg-white dark:bg-zinc-950">
-        <div className="legal-editor-wrapper max-w-[816px] mx-auto py-8 px-12 min-h-full">
+        <div className="legal-editor-wrapper mx-auto min-h-full w-full max-w-[1120px] px-3 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
           <EditorContent editor={editor} />
         </div>
       </div>

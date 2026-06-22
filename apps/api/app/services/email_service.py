@@ -6,7 +6,11 @@ import html
 import logging
 import re
 from email.message import EmailMessage
+from mimetypes import guess_type
+from pathlib import Path
 from typing import Optional
+from typing import TypedDict
+from urllib.parse import urljoin
 
 import requests
 import resend
@@ -19,12 +23,25 @@ ADMIN_NOTIFY_EMAILS = ["durgaprasd165@gmail.com"]
 FRONTEND_URL = settings.frontend_url.rstrip("/")
 GMAIL_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
+
+class InlineAttachment(TypedDict):
+    filename: str
+    content: bytes
+    content_type: str
+    content_id: str
+
+
+def _clean_secret(value: Optional[str]) -> Optional[str]:
+    cleaned = (value or "").strip()
+    return cleaned or None
+
+
 def _gmail_configured() -> bool:
     return bool(
-        settings.gmail_client_id
-        and settings.gmail_client_secret
-        and settings.gmail_refresh_token
-        and settings.gmail_sender_email
+        _clean_secret(settings.gmail_client_id)
+        and _clean_secret(settings.gmail_client_secret)
+        and _clean_secret(settings.gmail_refresh_token)
+        and _clean_secret(settings.gmail_sender_email)
     )
 
 
@@ -43,20 +60,143 @@ def _html_to_text(content: str) -> str:
     return text.strip()
 
 
+def _public_asset_roots() -> list[Path]:
+    roots: list[Path] = []
+    current_file = Path(__file__).resolve()
+    for parent in current_file.parents:
+        roots.extend(
+            [
+                parent / "public",
+                parent / "app" / "public",
+                parent / "apps" / "web" / "public",
+            ]
+        )
+
+    deduped: list[Path] = []
+    seen: set[Path] = set()
+    for root in roots:
+        if root in seen:
+            continue
+        seen.add(root)
+        deduped.append(root)
+    return deduped
+
+
+def _resolve_public_asset(src: str) -> tuple[Path, str] | None:
+    cleaned_src = src.strip()
+    if not cleaned_src.startswith("/") or cleaned_src.startswith("//"):
+        return None
+
+    relative_parts = [part for part in cleaned_src.lstrip("/").split("/") if part]
+    if not relative_parts or any(part == ".." for part in relative_parts):
+        return None
+
+    for root in _public_asset_roots():
+        candidate = root.joinpath(*relative_parts)
+        if candidate.exists() and candidate.is_file():
+            return candidate, (guess_type(candidate.name)[0] or "application/octet-stream")
+    return None
+
+
+def _prepare_document_html_for_email(content: str) -> tuple[str, list[InlineAttachment]]:
+    """Convert stamp images into inline mail assets so Gmail renders them inside the document body."""
+    if not content:
+        return content, []
+
+    inline_attachments: list[InlineAttachment] = []
+
+    def add_inline_attachment(*, filename: str, content: bytes, content_type: str) -> str:
+        content_id = f"stamp-{len(inline_attachments) + 1}@lexhelm"
+        inline_attachments.append(
+            {
+                "filename": filename,
+                "content": content,
+                "content_type": content_type,
+                "content_id": content_id,
+            }
+        )
+        return content_id
+
+    def replace_stamp_image(match: re.Match[str]) -> str:
+        attrs = match.group(1) or ""
+        src_match = re.search(r'src=(["\'])(.*?)\1', attrs, flags=re.IGNORECASE)
+        alt_match = re.search(r'alt=(["\'])(.*?)\1', attrs, flags=re.IGNORECASE)
+        style_match = re.search(r'style=(["\'])(.*?)\1', attrs, flags=re.IGNORECASE)
+
+        src = src_match.group(2).strip() if src_match else ""
+        alt = alt_match.group(2).strip() if alt_match else "Non-judicial stamp paper"
+        style = style_match.group(2).strip() if style_match else "width:100%;display:block;border:1px solid #111111;"
+
+        if src.startswith("data:image/") and "," in src:
+            header, encoded = src.split(",", 1)
+            mime_match = re.match(r"data:(image/[^;]+);base64", header, flags=re.IGNORECASE)
+            if mime_match:
+                try:
+                    content = base64.b64decode(encoded)
+                except Exception:
+                    content = b""
+                if content:
+                    content_type = mime_match.group(1).lower()
+                    ext = "png" if content_type.endswith("png") else "jpg"
+                    content_id = add_inline_attachment(
+                        filename=f"non-judicial-stamp.{ext}",
+                        content=content,
+                        content_type=content_type,
+                    )
+                    return f'<img src="cid:{content_id}" alt="{html.escape(alt)}" style="{html.escape(style)}" />'
+
+        resolved_asset = _resolve_public_asset(src)
+        if resolved_asset:
+            asset_path, content_type = resolved_asset
+            content_id = add_inline_attachment(
+                filename=asset_path.name,
+                content=asset_path.read_bytes(),
+                content_type=content_type,
+            )
+            return f'<img src="cid:{content_id}" alt="{html.escape(alt)}" style="{html.escape(style)}" />'
+
+        if src.startswith("/") and not src.startswith("//"):
+            absolute_src = urljoin(f"{FRONTEND_URL}/", src.lstrip("/"))
+            return f'<img src="{absolute_src}" alt="{html.escape(alt)}" style="{html.escape(style)}" />'
+
+        return match.group(0)
+
+    def replace_src(match: re.Match[str]) -> str:
+        quote = match.group(1)
+        src = match.group(2).strip()
+        if src.startswith("/") and not src.startswith("//"):
+            absolute_src = urljoin(f"{FRONTEND_URL}/", src.lstrip("/"))
+            return f'src={quote}{absolute_src}{quote}'
+        return match.group(0)
+
+    prepared_content = re.sub(
+        r"<img\b([^>]*?(?:non-judicial|data:image)[^>]*?)>",
+        replace_stamp_image,
+        content,
+        flags=re.IGNORECASE,
+    )
+    prepared_content = re.sub(r'src=(["\'])(.*?)\1', replace_src, prepared_content, flags=re.IGNORECASE)
+    return prepared_content, inline_attachments
+
+
 def _get_gmail_access_token() -> str:
     response = requests.post(
         GMAIL_TOKEN_URL,
         data={
-            "client_id": settings.gmail_client_id,
-            "client_secret": settings.gmail_client_secret,
-            "refresh_token": settings.gmail_refresh_token,
+            "client_id": _clean_secret(settings.gmail_client_id),
+            "client_secret": _clean_secret(settings.gmail_client_secret),
+            "refresh_token": _clean_secret(settings.gmail_refresh_token),
             "grant_type": "refresh_token",
         },
         timeout=20,
     )
-    response.raise_for_status()
+    if not response.ok:
+        detail = response.text.strip()
+        raise RuntimeError(
+            f"Gmail token refresh failed ({response.status_code}): {detail or 'no response body'}"
+        )
     payload = response.json()
-    access_token = payload.get("access_token")
+    access_token = _clean_secret(payload.get("access_token"))
     if not access_token:
         raise RuntimeError("Gmail token response did not include an access token.")
     return access_token
@@ -68,10 +208,12 @@ def _send_via_gmail(
     cc: list[str] | None,
     subject: str,
     html_content: str,
+    inline_attachments: list[InlineAttachment] | None = None,
     from_header: str,
     reply_to: str | None = None,
+    access_token: str | None = None,
 ) -> None:
-    access_token = _get_gmail_access_token()
+    resolved_access_token = _clean_secret(access_token) or _get_gmail_access_token()
 
     message = EmailMessage()
     message["To"] = ", ".join(to)
@@ -84,16 +226,30 @@ def _send_via_gmail(
 
     message.set_content(_html_to_text(html_content))
     message.add_alternative(html_content, subtype="html")
-
+    if inline_attachments:
+        html_part = message.get_payload()[-1]
+        for attachment in inline_attachments:
+            maintype, subtype = attachment["content_type"].split("/", 1)
+            html_part.add_related(
+                attachment["content"],
+                maintype=maintype,
+                subtype=subtype,
+                cid=f"<{attachment['content_id']}>",
+                filename=attachment["filename"],
+            )
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
-    gmail_user = settings.gmail_sender_email or "me"
+    gmail_user = "me"
     response = requests.post(
         f"https://gmail.googleapis.com/gmail/v1/users/{gmail_user}/messages/send",
-        headers={"Authorization": f"Bearer {access_token}"},
+        headers={"Authorization": f"Bearer {resolved_access_token}"},
         json={"raw": raw_message},
         timeout=20,
     )
-    response.raise_for_status()
+    if not response.ok:
+        detail = response.text.strip()
+        raise RuntimeError(
+            f"Gmail API send failed ({response.status_code}): {detail or 'no response body'}"
+        )
 
 
 def _send_via_resend(
@@ -102,6 +258,7 @@ def _send_via_resend(
     cc: list[str] | None,
     subject: str,
     html_content: str,
+    inline_attachments: list[InlineAttachment] | None = None,
     from_header: str,
     reply_to: str | None = None,
 ) -> None:
@@ -116,6 +273,17 @@ def _send_via_resend(
         params["cc"] = cc
     if reply_to:
         params["reply_to"] = reply_to
+    if inline_attachments:
+        params["attachments"] = [
+            {
+                "filename": attachment["filename"],
+                "content": list(attachment["content"]),
+                "content_type": attachment["content_type"],
+                "content_id": attachment["content_id"],
+                "inline_content_id": attachment["content_id"],
+            }
+            for attachment in inline_attachments
+        ]
     resend.Emails.send(params)
 
 
@@ -125,10 +293,30 @@ def _deliver_email(
     cc: list[str] | None,
     subject: str,
     html_content: str,
+    inline_attachments: list[InlineAttachment] | None = None,
     from_header: str,
     reply_to: str | None = None,
+    gmail_access_token: str | None = None,
 ) -> None:
-    gmail_error: Exception | None = None
+    delivery_errors: list[str] = []
+
+    if _clean_secret(gmail_access_token):
+        try:
+            _send_via_gmail(
+                to=to,
+                cc=cc,
+                subject=subject,
+                html_content=html_content,
+                inline_attachments=inline_attachments,
+                from_header=from_header,
+                reply_to=reply_to,
+                access_token=gmail_access_token,
+            )
+            logger.info("Email delivered via user Gmail access token to %s", to)
+            return
+        except Exception as exc:
+            delivery_errors.append(f"user Gmail token: {exc}")
+            logger.exception("User Gmail token delivery failed for %s", to)
 
     if _gmail_configured():
         try:
@@ -137,13 +325,14 @@ def _deliver_email(
                 cc=cc,
                 subject=subject,
                 html_content=html_content,
+                inline_attachments=inline_attachments,
                 from_header=from_header,
                 reply_to=reply_to,
             )
             logger.info("Email delivered via Gmail API to %s", to)
             return
         except Exception as exc:
-            gmail_error = exc
+            delivery_errors.append(f"server Gmail token: {exc}")
             logger.exception("Gmail delivery failed for %s", to)
 
     if _resend_configured():
@@ -153,6 +342,7 @@ def _deliver_email(
                 cc=cc,
                 subject=subject,
                 html_content=html_content,
+                inline_attachments=inline_attachments,
                 from_header=from_header,
                 reply_to=reply_to,
             )
@@ -162,10 +352,10 @@ def _deliver_email(
             logger.exception("Resend delivery failed for %s", to)
             raise
 
-    if gmail_error:
+    if delivery_errors:
         raise RuntimeError(
-            "Gmail delivery failed and no Resend fallback is configured."
-        ) from gmail_error
+            "Email delivery failed. " + " | ".join(delivery_errors)
+        )
     raise RuntimeError(
         "No email provider configured. Set Gmail API credentials or RESEND_API_KEY."
     )
@@ -209,6 +399,7 @@ def send_beta_signup_notification(
             cc=None,
             subject=f"[LexHelm Beta] New signup: {applicant_name} ({email})",
             html_content=html,
+            inline_attachments=None,
             from_header=f"LexHelm <{settings.gmail_sender_email or settings.resend_from_email}>",
         )
         logger.info("Beta signup notification sent for %s", email)
@@ -252,6 +443,7 @@ def send_beta_approved_email(email: str, name: Optional[str] = None) -> None:
             cc=None,
             subject="Your LexHelm beta access is approved!",
             html_content=html,
+            inline_attachments=None,
             from_header=f"LexHelm <{settings.gmail_sender_email or settings.resend_from_email}>",
         )
         logger.info("Beta approved email sent to %s", email)
@@ -268,8 +460,10 @@ def send_document_email(
     sender_name: str,
     sender_email: str,
     note: Optional[str] = None,
+    gmail_access_token: Optional[str] = None,
 ) -> None:
     """Send a legal document to client(s) with Gmail delivery when configured."""
+    prepared_document_html, inline_attachments = _prepare_document_html_for_email(document_html)
 
     note_html = ""
     if note:
@@ -280,7 +474,7 @@ def send_document_email(
         </div>
         """
 
-    html = f"""
+    email_html = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 700px; margin: 0 auto; color: #1a1a1a;">
       <div style="background: linear-gradient(135deg, #8b5cf6, #a855f7); padding: 24px 28px; border-radius: 12px 12px 0 0;">
         <h2 style="color: white; margin: 0; font-size: 18px;">{document_title}</h2>
@@ -292,7 +486,7 @@ def send_document_email(
         {note_html}
         <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; background: white;">
           <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 13px; line-height: 1.7; color: #1a1a1a;">
-            {document_html}
+            {prepared_document_html}
           </div>
         </div>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
@@ -305,17 +499,21 @@ def send_document_email(
     """
 
     try:
+        from_email = sender_email if _clean_secret(gmail_access_token) else (settings.gmail_sender_email or settings.resend_from_email)
         _deliver_email(
             to=to,
             cc=cc,
             subject=subject,
-            html_content=html,
-            from_header=f"{sender_name} via LexHelm <{settings.gmail_sender_email or settings.resend_from_email}>",
+            html_content=email_html,
+            inline_attachments=inline_attachments,
+            from_header=f"{sender_name} via LexHelm <{from_email}>",
             reply_to=sender_email,
+            gmail_access_token=gmail_access_token,
         )
         logger.info("Document email sent to %s (cc: %s) by %s", to, cc, sender_email)
     except Exception:
         logger.exception("Failed to send document email to %s", to)
+        raise
 
 
 def send_consultation_notification(
@@ -400,6 +598,7 @@ def send_consultation_notification(
             cc=None,
             subject=f"[Consultation] {urgency_display}: {subject} — {name}",
             html_content=html,
+            inline_attachments=None,
             from_header=f"LexHelm Consultations <{settings.gmail_sender_email or settings.resend_from_email}>",
             reply_to=email,
         )

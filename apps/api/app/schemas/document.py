@@ -81,6 +81,12 @@ class DraftChatContentRequest(BaseModel):
     content: str = Field(..., min_length=1)
 
 
+class DraftChatSaveGeneratedRequest(BaseModel):
+    template_id: str = Field(..., min_length=1)
+    collected_fields: dict = Field(default_factory=dict)
+    content: str = Field(..., min_length=1)
+
+
 class DraftChatRefineRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     current_document: str = Field(..., min_length=1)

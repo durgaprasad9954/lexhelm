@@ -6,7 +6,14 @@ import {
   List, ListOrdered,
   Undo2, Redo2,
   Minus, Quote, Highlighter,
+  ChevronDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ToolbarProps {
   editor: Editor;
@@ -125,8 +132,44 @@ function HeadingDropdown({ editor }: { editor: Editor }) {
 }
 
 export function EditorToolbar({ editor }: ToolbarProps) {
+  const mobileActions = [
+    { label: "Undo", action: () => editor.chain().focus().undo().run() },
+    { label: "Redo", action: () => editor.chain().focus().redo().run() },
+    { label: "Normal Text", action: () => editor.chain().focus().setParagraph().run() },
+    { label: "Heading 1", action: () => editor.chain().focus().setHeading({ level: 1 }).run() },
+    { label: "Heading 2", action: () => editor.chain().focus().setHeading({ level: 2 }).run() },
+    { label: "Bold", action: () => editor.chain().focus().toggleBold().run() },
+    { label: "Italic", action: () => editor.chain().focus().toggleItalic().run() },
+    { label: "Underline", action: () => editor.chain().focus().toggleUnderline().run() },
+    { label: "Highlight", action: () => editor.chain().focus().toggleHighlight().run() },
+    { label: "Align Left", action: () => editor.chain().focus().setTextAlign("left").run() },
+    { label: "Align Center", action: () => editor.chain().focus().setTextAlign("center").run() },
+    { label: "Justify", action: () => editor.chain().focus().setTextAlign("justify").run() },
+    { label: "Bullet List", action: () => editor.chain().focus().toggleBulletList().run() },
+    { label: "Numbered List", action: () => editor.chain().focus().toggleOrderedList().run() },
+    { label: "Quote", action: () => editor.chain().focus().toggleBlockquote().run() },
+    { label: "Divider", action: () => editor.chain().focus().setHorizontalRule().run() },
+  ];
+
   return (
-    <div className="border-b border-border bg-accent/30 px-3 py-1.5 flex items-center gap-1 flex-wrap shrink-0">
+    <>
+      <div className="flex items-center justify-between border-b border-border bg-accent/30 px-3 py-2 shrink-0 sm:hidden">
+        <span className="text-xs font-medium text-muted-foreground">Edit document</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground">
+            Formatting
+            <ChevronDown className="h-3.5 w-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-48">
+            {mobileActions.map((item) => (
+              <DropdownMenuItem key={item.label} onClick={item.action}>
+                {item.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="hidden border-b border-border bg-accent/30 px-3 py-1.5 shrink-0 sm:flex sm:flex-wrap sm:items-center sm:gap-1">
       {/* Undo/Redo */}
       <ToolbarButton
         onClick={() => editor.chain().focus().undo().run()}
@@ -254,6 +297,7 @@ export function EditorToolbar({ editor }: ToolbarProps) {
       >
         <Minus className="h-4 w-4" />
       </ToolbarButton>
-    </div>
+      </div>
+    </>
   );
 }

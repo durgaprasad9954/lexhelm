@@ -28,6 +28,11 @@ class AuthResponse(BaseModel):
     org: dict
 
 
+class DevLoginRequest(BaseModel):
+    email: Optional[str] = "dev@lexhelm.local"
+    name: Optional[str] = "Developer"
+
+
 def _sign_app_jwt(user: dict, org: dict) -> str:
     """Sign a JWT with the backend secret — never exposed to the browser."""
     if not settings.jwt_secret:
@@ -89,4 +94,32 @@ async def login_with_google(body: GoogleLoginRequest):
 
     token = _sign_app_jwt(user, org)
 
+    return AuthResponse(token=token, user=user, org=org)
+
+
+@router.post("/auth/dev", response_model=AuthResponse, tags=["auth"])
+async def login_with_dev_account(body: DevLoginRequest):
+    """Issue a signed local-development JWT for the built-in test account."""
+    allowed_frontend = (settings.frontend_url or "").lower()
+    if "localhost" not in allowed_frontend and "127.0.0.1" not in allowed_frontend:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Developer login is only available in local development.",
+        )
+
+    email = (body.email or "dev@lexhelm.local").strip().lower()
+    name = (body.name or "Developer").strip() or "Developer"
+    domain = email.split("@")[1] if "@" in email else "lexhelm.local"
+
+    user = {
+        "id": "dev-user-001",
+        "email": email,
+        "name": name,
+        "picture": None,
+    }
+    org = {
+        "id": f"org-{domain.replace('.', '-')}",
+        "name": "LexHelm Dev",
+    }
+    token = _sign_app_jwt(user, org)
     return AuthResponse(token=token, user=user, org=org)

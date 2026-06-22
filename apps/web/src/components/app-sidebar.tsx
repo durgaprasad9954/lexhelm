@@ -9,6 +9,7 @@ import {
   FileText,
   Building2,
   Scale,
+  Search,
   ChevronUp,
   LogOut,
   ShieldCheck,
@@ -21,6 +22,7 @@ import { useSidebar } from "@/lib/sidebar-context";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, color: "text-foreground/70" },
+  { href: "/search", label: "Legal Search", icon: Search, color: "text-foreground/70" },
   { href: "/documents", label: "Create Documents", icon: FileText, color: "text-foreground/70" },
   { href: "/doc-chat", label: "Review Document", icon: MessageSquare, color: "text-foreground/70" },
   { href: "/documents?tab=saved", label: "Your Documents", icon: FileText, color: "text-foreground/70" },

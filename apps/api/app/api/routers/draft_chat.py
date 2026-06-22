@@ -15,6 +15,7 @@ from app.schemas.document import (
     DraftChatMessageRequest,
     DraftChatRefineRequest,
     DraftChatResponse,
+    DraftChatSaveGeneratedRequest,
     DraftChatSessionDetail,
     DraftChatSessionSummary,
     DraftChatStartRequest,
@@ -139,6 +140,33 @@ async def save_document_content(session_id: str, req: DraftChatContentRequest):
 
         draft = await draft_chat_service.save_generated_content(
             session, draft, req.content,
+        )
+
+        return DraftChatResponse(
+            session_id=draft.id,
+            assistant_message="Document saved.",
+            phase=draft.phase,
+            template_id=draft.template_id,
+            collected_fields=draft.collected_fields or {},
+            missing_fields=draft.missing_fields or [],
+            generated_content=draft.generated_content,
+        )
+
+
+@router.post("/save-generated", response_model=DraftChatResponse)
+async def save_generated_document(
+    req: DraftChatSaveGeneratedRequest,
+    jwt: Optional[JWTPayload] = Depends(get_jwt_payload_optional),
+):
+    """Create a saved draft session from an already generated document."""
+    async with async_session_factory() as session:
+        draft = await draft_chat_service.create_generated_session(
+            session,
+            template_id=req.template_id,
+            collected_fields=req.collected_fields or {},
+            generated_content=req.content,
+            org_id=jwt.org_id if jwt else None,
+            user_id=jwt.user_id if jwt else None,
         )
 
         return DraftChatResponse(

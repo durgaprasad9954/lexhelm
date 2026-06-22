@@ -5,11 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { askLegalSearch, type SearchChatResponse } from "@/lib/api";
 import {
-  ArrowRight,
   Bot,
   Landmark,
   MessageSquare,
@@ -18,13 +17,6 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
-
-const EXAMPLE_QUERIES = [
-  "What are a tenant's eviction rights in India?",
-  "Can an employer terminate without notice in India?",
-  "What does Section 138 of the NI Act cover?",
-  "What rights does a startup founder keep after investor entry?",
-];
 
 interface ChatMessage {
   id: string;
@@ -145,29 +137,7 @@ export default function SearchPage() {
         </motion.div>
       </div>
 
-      <div className="grid gap-6 p-6 md:grid-cols-[280px_minmax(0,1fr)] md:px-10 md:py-8">
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle className="text-base">Try a question</CardTitle>
-            <CardDescription>
-              Use one of these prompts or ask your own question in plain English.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {EXAMPLE_QUERIES.map((example) => (
-              <button
-                key={example}
-                type="button"
-                onClick={() => void submitQuery(example)}
-                className="flex w-full items-start justify-between gap-3 rounded-xl border border-border bg-background px-3 py-3 text-left text-sm transition-colors hover:border-primary/30 hover:bg-accent"
-              >
-                <span>{example}</span>
-                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-
+      <div className="p-6 md:px-10 md:py-8">
         <div className="space-y-4">
           <Card className="min-h-[520px]">
             <CardContent className="space-y-4 p-4 md:p-5">

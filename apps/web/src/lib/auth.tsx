@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { setAuthToken, loginWithGoogleBackend } from "@/lib/api";
+import { setAuthToken, loginWithGoogleBackend, loginWithDevBackend } from "@/lib/api";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const STORAGE_KEY = "lexhelm_auth";
@@ -26,6 +26,7 @@ interface AuthState {
   googleClientId: string;
   loginWithGoogle: (credentialResponse: { credential?: string }) => Promise<void>;
   login: (user: AuthUser, org: AuthOrg, token?: string) => Promise<void>;
+  loginAsDeveloper: () => Promise<void>;
   logout: () => void;
   switchOrg: (org: AuthOrg) => Promise<void>;
 }
@@ -39,6 +40,7 @@ const AuthContext = createContext<AuthState>({
   googleClientId: "",
   loginWithGoogle: async () => {},
   login: async () => {},
+  loginAsDeveloper: async () => {},
   logout: () => {},
   switchOrg: async () => {},
 });
@@ -53,37 +55,42 @@ interface StoredAuth {
   token: string;
 }
 
+function isLikelyJwt(token: string | null | undefined) {
+  if (!token) return false;
+  return token.split(".").length === 3;
+}
+
+function readStoredAuth(): { user: AuthUser | null; org: AuthOrg | null; token: string | null } {
+  if (typeof window === "undefined") {
+    return { user: null, org: null, token: null };
+  }
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) {
+      return { user: null, org: null, token: null };
+    }
+    const { user, org, token } = JSON.parse(stored) as StoredAuth;
+    if (!isLikelyJwt(token)) {
+      localStorage.removeItem(STORAGE_KEY);
+      return { user: null, org: null, token: null };
+    }
+    return { user, org, token };
+  } catch {
+    return { user: null, org: null, token: null };
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [org, setOrg] = useState<AuthOrg | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [storedAuth] = useState(readStoredAuth);
+  const [user, setUser] = useState<AuthUser | null>(storedAuth.user);
+  const [org, setOrg] = useState<AuthOrg | null>(storedAuth.org);
+  const [token, setToken] = useState<string | null>(storedAuth.token);
+  const [isLoading] = useState(false);
 
   // Sync token to API module
   useEffect(() => {
     setAuthToken(token);
   }, [token]);
-
-  // Restore session from localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const { user: u, org: o, token: t } = JSON.parse(stored) as StoredAuth;
-        if (t) {
-          setAuthToken(t);
-          setUser(u);
-          setOrg(o);
-          setToken(t);
-        }
-      }
-      // If no stored session → stay unauthenticated (show login)
-    } catch {
-      // corrupt storage — ignore
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   const loginWithGoogle = useCallback(async (credentialResponse: { credential?: string }) => {
     if (!credentialResponse.credential) throw new Error("No credential received from Google");
@@ -121,6 +128,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: u, org: o, token: t }));
   }, []);
 
+  const loginAsDeveloper = useCallback(async () => {
+    const result = await loginWithDevBackend();
+    const devUser: AuthUser = {
+      id: result.user.id,
+      email: result.user.email,
+      name: result.user.name,
+      picture: result.user.picture,
+    };
+    const devOrg: AuthOrg = {
+      id: result.org.id,
+      name: result.org.name,
+    };
+    const t = result.token;
+
+    setAuthToken(t);
+    setUser(devUser);
+    setOrg(devOrg);
+    setToken(t);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: devUser, org: devOrg, token: t }));
+  }, []);
+
   const logout = useCallback(() => {
     setAuthToken(null); // sync immediately before state update
     setUser(null);
@@ -147,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       googleClientId: GOOGLE_CLIENT_ID,
       loginWithGoogle,
       login,
+      loginAsDeveloper,
       logout,
       switchOrg,
     }}>

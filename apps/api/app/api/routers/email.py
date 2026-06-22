@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
-from app.core.jwt_auth import JWTPayload, get_jwt_payload
+from app.core.jwt_auth import JWTPayload, get_jwt_payload_optional
 from app.core.rate_limit import RateLimit
 from app.services.email_service import send_document_email
 from app.services.slack_service import send_slack_notification
@@ -23,6 +23,9 @@ class SendDocumentEmailRequest(BaseModel):
     note: Optional[str] = Field(None, max_length=2000)
     document_html: str = Field(..., min_length=1)
     document_title: str = Field("Document", max_length=200)
+    gmail_access_token: Optional[str] = Field(None, min_length=1, max_length=4096)
+    sender_email: Optional[str] = Field(None, min_length=3, max_length=320)
+    sender_name: Optional[str] = Field(None, min_length=1, max_length=200)
 
 
 async def _notify_document_share_slack(
@@ -48,12 +51,11 @@ async def _notify_document_share_slack(
 @router.post("/send-document", dependencies=[Depends(_send_limit)])
 async def send_document(
     req: SendDocumentEmailRequest,
-    background_tasks: BackgroundTasks,
-    jwt: JWTPayload = Depends(get_jwt_payload),
+    jwt: Optional[JWTPayload] = Depends(get_jwt_payload_optional),
 ):
     """Send a document to client(s) via email, CC'ing the sender."""
-    sender_email = jwt.email
-    sender_name = jwt.name or sender_email
+    sender_email = jwt.email if jwt else req.sender_email
+    sender_name = (jwt.name if jwt else req.sender_name) or sender_email
 
     if not sender_email:
         raise HTTPException(status_code=400, detail="Your account must have an email to send documents.")
@@ -63,24 +65,30 @@ async def send_document(
     if sender_email not in cc_list and sender_email not in req.to:
         cc_list.append(sender_email)
 
-    background_tasks.add_task(
-        send_document_email,
-        to=list(req.to),
-        cc=cc_list,
-        subject=req.subject,
-        note=req.note,
-        document_html=req.document_html,
-        document_title=req.document_title,
-        sender_name=sender_name,
-        sender_email=sender_email,
-    )
-    background_tasks.add_task(
-        _notify_document_share_slack,
-        sender_name=sender_name,
-        sender_email=sender_email,
-        recipients=list(req.to),
-        subject=req.subject,
-        note=req.note,
-    )
+    try:
+        send_document_email(
+            to=list(req.to),
+            cc=cc_list,
+            subject=req.subject,
+            note=req.note,
+            document_html=req.document_html,
+            document_title=req.document_title,
+            sender_name=sender_name,
+            sender_email=sender_email,
+            gmail_access_token=req.gmail_access_token,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {exc}") from exc
 
-    return {"message": f"Document will be sent via Gmail to {', '.join(req.to)}"}
+    try:
+        await _notify_document_share_slack(
+            sender_name=sender_name,
+            sender_email=sender_email,
+            recipients=list(req.to),
+            subject=req.subject,
+            note=req.note,
+        )
+    except Exception:
+        pass
+
+    return {"message": f"Document sent to {', '.join(req.to)}"}
