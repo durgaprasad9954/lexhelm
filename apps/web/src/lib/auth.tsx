@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { setAuthToken, loginWithGoogleBackend, loginWithDevBackend } from "@/lib/api";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
@@ -55,37 +55,100 @@ interface StoredAuth {
   token: string;
 }
 
+interface AuthSnapshot {
+  user: AuthUser | null;
+  org: AuthOrg | null;
+  token: string | null;
+}
+
+const EMPTY_AUTH_SNAPSHOT: AuthSnapshot = {
+  user: null,
+  org: null,
+  token: null,
+};
+const authListeners = new Set<() => void>();
+let cachedStoredAuthRaw: string | null = null;
+let cachedStoredAuthSnapshot: AuthSnapshot = EMPTY_AUTH_SNAPSHOT;
+
 function isLikelyJwt(token: string | null | undefined) {
   if (!token) return false;
   return token.split(".").length === 3;
 }
 
-function readStoredAuth(): { user: AuthUser | null; org: AuthOrg | null; token: string | null } {
+function emitAuthChange() {
+  for (const listener of authListeners) {
+    listener();
+  }
+}
+
+function subscribeAuth(listener: () => void) {
+  authListeners.add(listener);
+  return () => authListeners.delete(listener);
+}
+
+function readStoredAuth(): AuthSnapshot {
   if (typeof window === "undefined") {
-    return { user: null, org: null, token: null };
+    return EMPTY_AUTH_SNAPSHOT;
   }
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) {
-      return { user: null, org: null, token: null };
+      cachedStoredAuthRaw = null;
+      cachedStoredAuthSnapshot = EMPTY_AUTH_SNAPSHOT;
+      return EMPTY_AUTH_SNAPSHOT;
+    }
+    if (stored === cachedStoredAuthRaw) {
+      return cachedStoredAuthSnapshot;
     }
     const { user, org, token } = JSON.parse(stored) as StoredAuth;
     if (!isLikelyJwt(token)) {
       localStorage.removeItem(STORAGE_KEY);
-      return { user: null, org: null, token: null };
+      cachedStoredAuthRaw = null;
+      cachedStoredAuthSnapshot = EMPTY_AUTH_SNAPSHOT;
+      return EMPTY_AUTH_SNAPSHOT;
     }
-    return { user, org, token };
+    cachedStoredAuthRaw = stored;
+    cachedStoredAuthSnapshot = { user, org, token };
+    return cachedStoredAuthSnapshot;
   } catch {
-    return { user: null, org: null, token: null };
+    cachedStoredAuthRaw = null;
+    cachedStoredAuthSnapshot = EMPTY_AUTH_SNAPSHOT;
+    return EMPTY_AUTH_SNAPSHOT;
   }
 }
 
+function readServerAuth(): AuthSnapshot {
+  return EMPTY_AUTH_SNAPSHOT;
+}
+
+function readHydrationSnapshot() {
+  return true;
+}
+
+function readServerHydrationSnapshot() {
+  return false;
+}
+
+function persistAuth(snapshot: AuthSnapshot) {
+  if (typeof window === "undefined") return;
+  if (!snapshot.user || !snapshot.org || !snapshot.token) {
+    localStorage.removeItem(STORAGE_KEY);
+    cachedStoredAuthRaw = null;
+    cachedStoredAuthSnapshot = EMPTY_AUTH_SNAPSHOT;
+    emitAuthChange();
+    return;
+  }
+  const serialized = JSON.stringify(snapshot);
+  localStorage.setItem(STORAGE_KEY, serialized);
+  cachedStoredAuthRaw = serialized;
+  cachedStoredAuthSnapshot = snapshot;
+  emitAuthChange();
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [storedAuth] = useState(readStoredAuth);
-  const [user, setUser] = useState<AuthUser | null>(storedAuth.user);
-  const [org, setOrg] = useState<AuthOrg | null>(storedAuth.org);
-  const [token, setToken] = useState<string | null>(storedAuth.token);
-  const [isLoading] = useState(false);
+  const { user, org, token } = useSyncExternalStore(subscribeAuth, readStoredAuth, readServerAuth);
+  const hasHydrated = useSyncExternalStore(subscribeAuth, readHydrationSnapshot, readServerHydrationSnapshot);
+  const isLoading = !hasHydrated;
 
   // Sync token to API module
   useEffect(() => {
@@ -113,19 +176,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const t = result.token;
 
     setAuthToken(t);
-    setUser(googleUser);
-    setOrg(googleOrg);
-    setToken(t);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: googleUser, org: googleOrg, token: t }));
+    persistAuth({ user: googleUser, org: googleOrg, token: t });
   }, []);
 
   const login = useCallback(async (u: AuthUser, o: AuthOrg, t?: string) => {
     if (!t) throw new Error("Token required — use loginWithGoogle instead");
     setAuthToken(t);
-    setUser(u);
-    setOrg(o);
-    setToken(t);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: u, org: o, token: t }));
+    persistAuth({ user: u, org: o, token: t });
   }, []);
 
   const loginAsDeveloper = useCallback(async () => {
@@ -143,26 +200,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const t = result.token;
 
     setAuthToken(t);
-    setUser(devUser);
-    setOrg(devOrg);
-    setToken(t);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: devUser, org: devOrg, token: t }));
+    persistAuth({ user: devUser, org: devOrg, token: t });
   }, []);
 
   const logout = useCallback(() => {
     setAuthToken(null); // sync immediately before state update
-    setUser(null);
-    setOrg(null);
-    setToken(null);
-    localStorage.removeItem(STORAGE_KEY);
+    persistAuth(EMPTY_AUTH_SNAPSHOT);
   }, []);
 
   const switchOrg = useCallback(async (o: AuthOrg) => {
     if (!user || !token) return;
     // For now, just update the org in state — the existing token stays valid
     // A proper implementation would call the backend to re-sign with new org_id
-    setOrg(o);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, org: o, token }));
+    persistAuth({ user, org: o, token });
   }, [user, token]);
 
   return (

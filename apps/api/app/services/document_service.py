@@ -227,10 +227,13 @@ Only report concrete validation problems. If a field is acceptable, do not menti
 Fields:
 {json.dumps(review_fields, ensure_ascii=True)}"""
 
-    response = await client.aio.models.generate_content(
-        model=settings.gemini_lite_model,
-        contents=prompt,
-    )
+    try:
+        response = await client.aio.models.generate_content(
+            model=settings.gemini_lite_model,
+            contents=prompt,
+        )
+    except Exception:
+        return []
     raw = _strip_json_fences(response.text)
     try:
         parsed = json.loads(raw)
@@ -538,10 +541,13 @@ IMPORTANT: DO NOT use markdown tables. Present any structured data or signature 
 Draft:
 {base}"""
 
-    response = await client.aio.models.generate_content(
-        model=settings.gemini_model,
-        contents=prompt,
-    )
+    try:
+        response = await client.aio.models.generate_content(
+            model=settings.gemini_model,
+            contents=prompt,
+        )
+    except Exception:
+        return base
     return response.text.strip()
 
 

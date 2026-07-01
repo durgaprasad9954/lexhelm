@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import sys
 import types
@@ -157,6 +158,23 @@ class DocumentServiceValidationTests(unittest.TestCase):
         self.assertTrue(any("Landlord Signature" in error for error in errors))
         self.assertTrue(any("Tenant Signature" in error for error in errors))
         self.assertTrue(any("Witness Signature" in error for error in errors))
+
+    def test_llm_validation_fails_soft_when_gemini_client_errors(self) -> None:
+        module = self._load_service_module()
+        module.settings.gemini_api_key = "invalid-key"
+
+        class _FailingModels:
+            async def generate_content(self, *args, **kwargs):
+                raise RuntimeError("API key not valid")
+
+        class _FailingClient:
+            aio = types.SimpleNamespace(models=_FailingModels())
+
+        module._get_genai_client = lambda: _FailingClient()
+
+        result = asyncio.run(module._validate_rental_fields_with_llm({"landlord_name": "Asha"}))
+
+        self.assertEqual(result, [])
 
 
 if __name__ == "__main__":

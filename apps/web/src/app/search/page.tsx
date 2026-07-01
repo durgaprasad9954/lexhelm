@@ -25,12 +25,25 @@ interface ChatMessage {
   sources?: SearchChatResponse["sources"];
 }
 
+function toSearchErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message.includes("Could not reach the LexHelm API")) {
+      return error.message;
+    }
+    if (error.message.includes("temporarily unavailable")) {
+      return error.message;
+    }
+    return error.message;
+  }
+  return "Legal search failed";
+}
+
 export default function SearchPage() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const messageIdRef = useRef(0);
-  const autoPromptHandledRef = useRef(false);
+  const lastAutoPromptRef = useRef<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
@@ -70,7 +83,7 @@ export default function SearchPage() {
         },
       ]);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Legal search failed";
+      const message = toSearchErrorMessage(error);
       setMessages((current) => [
         ...current,
         {
@@ -91,13 +104,13 @@ export default function SearchPage() {
 
   useEffect(() => {
     const prompt = searchParams.get("prompt")?.trim();
-    if (!prompt || autoPromptHandledRef.current) return;
-    autoPromptHandledRef.current = true;
+    if (!prompt || loading || lastAutoPromptRef.current === prompt) return;
+    lastAutoPromptRef.current = prompt;
     const timer = window.setTimeout(() => {
       void submitQuery(prompt);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [searchParams, submitQuery]);
+  }, [loading, searchParams, submitQuery]);
 
   return (
     <div className="min-h-full bg-background">

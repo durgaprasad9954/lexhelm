@@ -83,3 +83,11 @@ services:
 
 volumes:
   postgres_data:
+
+networks:
+  default:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+        - subnet: fd42:4242:4242::/64

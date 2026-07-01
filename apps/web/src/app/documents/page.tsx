@@ -460,6 +460,7 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
     instruction: string;
   } | null>(null);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [copyingShareLink, setCopyingShareLink] = useState(false);
   const [emailTo, setEmailTo] = useState("");
   const [emailCc, setEmailCc] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
@@ -700,6 +701,59 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
     }
   };
 
+  const ensureShareableSessionId = async () => {
+    const html = editorHtml || generatedContent || "";
+    if (!html.trim()) {
+      throw new Error("Generate a document before creating a share link.");
+    }
+
+    if (sessionId) {
+      if (hasUnsavedChanges) {
+        const res = await saveDraftChatContent(sessionId, html);
+        const resolvedHtml = res.generated_content
+          ? (res.generated_content.trim().startsWith("<")
+            ? res.generated_content
+            : plainTextToHtml(res.generated_content))
+          : html;
+        setGeneratedContent(res.generated_content ?? html);
+        setEditorHtml(resolvedHtml);
+        setSavedEditorHtml(resolvedHtml);
+      }
+      return sessionId;
+    }
+
+    const res = await saveGeneratedDraftSession(templateId || "custom", editableFields, html);
+    const resolvedHtml = res.generated_content
+      ? (res.generated_content.trim().startsWith("<")
+        ? res.generated_content
+        : plainTextToHtml(res.generated_content))
+      : html;
+    setSessionId(res.session_id);
+    setGeneratedContent(res.generated_content ?? html);
+    setEditorHtml(resolvedHtml);
+    setSavedEditorHtml(resolvedHtml);
+    onSavedDocumentsChange();
+    return res.session_id;
+  };
+
+  const handleCopyShareLink = async () => {
+    if (copyingShareLink) return;
+    setCopyingShareLink(true);
+    try {
+      const ensuredSessionId = await ensureShareableSessionId();
+      if (!ensuredSessionId) {
+        throw new Error("Unable to create a share link for this document.");
+      }
+      const shareUrl = `${window.location.origin}/public-doc/${ensuredSessionId}`;
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Editable document link copied.");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to copy share link");
+    } finally {
+      setCopyingShareLink(false);
+    }
+  };
+
   const handleRefine = async () => {
     const msg = refineInput.trim();
     if (!msg || refining || !sessionId) return;
@@ -743,18 +797,22 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
     if (!emailTo.trim() || emailSending) return;
     setEmailSending(true);
     try {
-      const html = editorHtml || generatedContent || "";
+      const ensuredSessionId = await ensureShareableSessionId();
+      if (!ensuredSessionId) {
+        throw new Error("Unable to create a document link for email.");
+      }
+      const documentLink = `${window.location.origin}/public-doc/${ensuredSessionId}`;
       await sendDocumentEmail({
         to: emailTo.split(",").map((e) => e.trim()).filter(Boolean),
         cc: emailCc ? emailCc.split(",").map((e) => e.trim()).filter(Boolean) : undefined,
         subject: emailSubject || docTitle,
         note: emailNote || undefined,
-        document_html: html,
+        document_link: documentLink,
         document_title: docTitle,
         sender_email: user?.email,
         sender_name: user?.name,
       });
-      toast.success("Document sent successfully");
+      toast.success("Editable document link sent successfully");
       setShowEmailDialog(false);
       setEmailTo("");
       setEmailCc("");
@@ -860,6 +918,16 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
               title="Download as Word document"
             >
               <FileDown className="h-3.5 w-3.5" /> Export DOCX
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyShareLink}
+              disabled={!currentDocumentHtml.trim() || copyingShareLink}
+              className="gap-1.5 text-xs"
+              title="Copy a public editing link"
+            >
+              {copyingShareLink ? "Preparing link..." : "Share Link"}
             </Button>
             <Button
               variant="outline"
@@ -1136,6 +1204,15 @@ function AIDraftTab({ preselectedTemplate, initialPrompt, resumeSessionId, onTem
             className="flex-1 gap-1.5 text-xs"
           >
             <FileDown className="h-3.5 w-3.5" /> DOCX
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCopyShareLink}
+            disabled={!currentDocumentHtml.trim() || copyingShareLink}
+            className="flex-1 gap-1.5 text-xs"
+          >
+            {copyingShareLink ? "Preparing..." : "Share Link"}
           </Button>
           <Button
             variant="outline"

@@ -270,6 +270,16 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SEARCH_CACHE_MAX_SIZE", "search_cache_max_size"),
         description="Max cached search entries.",
     )
+    ik_request_timeout_seconds: int = Field(
+        8,
+        validation_alias=AliasChoices("IK_REQUEST_TIMEOUT_SECONDS", "ik_request_timeout_seconds"),
+        description="Timeout in seconds for IndianKanoon API requests.",
+    )
+    search_chat_llm_timeout_seconds: int = Field(
+        4,
+        validation_alias=AliasChoices("SEARCH_CHAT_LLM_TIMEOUT_SECONDS", "search_chat_llm_timeout_seconds"),
+        description="Timeout in seconds for the legal-search answer generation step.",
+    )
 
     # ── Validators ───────────────────────────────────────────────
 

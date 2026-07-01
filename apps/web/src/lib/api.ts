@@ -17,11 +17,21 @@ function resolveApiBase() {
 
 export const API_BASE = resolveApiBase();
 export const API_TOKEN = process.env.NEXT_PUBLIC_API_TOKEN || "lexhelm-dev-token-2024";
+const API_DEBUG = process.env.NODE_ENV !== "production";
 
 // JWT bearer token — set by AuthProvider
 let _bearerToken: string | null = null;
 export function setAuthToken(token: string | null) {
   _bearerToken = token;
+}
+
+function debugApiLog(message: string, payload?: unknown) {
+  if (!API_DEBUG) return;
+  if (payload === undefined) {
+    console.warn(message);
+    return;
+  }
+  console.warn(message, payload);
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -32,13 +42,30 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   if (_bearerToken) {
     headers["Authorization"] = `Bearer ${_bearerToken}`;
   }
-  const res = await fetch(`${API_BASE}${path}`, {
+  const request = {
     ...init,
     headers,
-  });
+  };
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, request);
+  } catch (error) {
+    const shouldRetryViaProxy =
+      typeof window !== "undefined" &&
+      API_BASE.startsWith("http://localhost");
+    if (shouldRetryViaProxy) {
+      try {
+        res = await fetch(`/api${path}`, request);
+      } catch {
+        throw new Error("Could not reach the LexHelm API. Make sure the backend is running on port 9000.");
+      }
+    } else {
+      throw error;
+    }
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    console.error("[API] Request failed", {
+    debugApiLog("[API] Request failed", {
       path,
       status: res.status,
       body,
@@ -63,22 +90,22 @@ export interface DevLoginRequest {
 
 /** Send Google ID token to backend, get back a signed app JWT. */
 export const loginWithGoogleBackend = async (credential: string) => {
-  console.log(`[API] Sending auth request to ${API_BASE}/auth/google`);
+  debugApiLog(`[API] Sending auth request to ${API_BASE}/auth/google`);
   try {
     const res = await fetch(`${API_BASE}/auth/google`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ credential }),
     });
-    console.log(`[API] Auth response status: ${res.status}`);
+    debugApiLog(`[API] Auth response status: ${res.status}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      console.error("[API] Auth error response:", body);
+      debugApiLog("[API] Auth error response:", body);
       throw new Error(body.detail || `Auth error ${res.status}`);
     }
     return res.json() as Promise<AuthGoogleResponse>;
   } catch (err) {
-    console.error("[API] Network or parsing error:", err);
+    debugApiLog("[API] Network or parsing error:", err);
     throw err;
   }
 };
@@ -327,7 +354,8 @@ export interface SendDocumentEmailRequest {
   cc?: string[];
   subject: string;
   note?: string;
-  document_html: string;
+  document_html?: string;
+  document_link?: string;
   document_title: string;
   gmail_access_token?: string;
   sender_email?: string;
@@ -371,7 +399,7 @@ export interface CreateWhatsAppDocumentResponse {
   } | null;
 }
 export const createWhatsAppDocument = async (req: CreateWhatsAppDocumentRequest) => {
-  console.log("[API] Sending WhatsApp document create request", {
+  debugApiLog("[API] Sending WhatsApp document create request", {
     phone_number: req.phone_number,
     template_id: req.template_id,
     document_type: req.document_type,
@@ -383,7 +411,7 @@ export const createWhatsAppDocument = async (req: CreateWhatsAppDocumentRequest)
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
   });
-  console.log("[API] WhatsApp document create response", result);
+  debugApiLog("[API] WhatsApp document create response", result);
   return result;
 };
 

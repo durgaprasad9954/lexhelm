@@ -88,12 +88,12 @@ _cache = _SearchCache(
 class IndianKanoonClient:
     """Typed wrapper around api.indiankanoon.org endpoints."""
 
-    def __init__(self, token: Optional[str] = None, *, host: str = "api.indiankanoon.org", timeout: int = 30):
+    def __init__(self, token: Optional[str] = None, *, host: str = "api.indiankanoon.org", timeout: Optional[int] = None):
         self.token: str = token or (settings.ik_api_key or "")
         if not self.token:
             raise AuthenticationError("IK_API_KEY not configured.")
         self.host = host
-        self.timeout = timeout
+        self.timeout = timeout or settings.ik_request_timeout_seconds
 
     def _headers(self) -> Dict[str, str]:
         return {"Authorization": f"Token {self.token}", "Accept": "application/json"}
