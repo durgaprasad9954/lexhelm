@@ -209,37 +209,42 @@ export default function DashboardPage() {
 
           {features.map((f) => (
             <motion.div key={f.href} variants={item}>
-              <Card className="group relative h-full overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg">
-                <div className={`absolute inset-0 bg-gradient-to-br ${f.color} opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
-                <CardHeader className="relative pb-2">
-                  <div className="flex items-start gap-4">
-                    <div className={`h-10 w-10 rounded-xl ${f.iconBg} flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110`}>
-                      <f.icon className={`h-5 w-5 ${f.iconColor}`} />
+              <Link href={f.href} className="block h-full">
+                <Card className="group relative h-full overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg">
+                  <div className={`absolute inset-0 bg-gradient-to-br ${f.color} opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
+                  <CardHeader className="relative pb-2">
+                    <div className="flex items-start gap-4">
+                      <div className={`h-10 w-10 rounded-xl ${f.iconBg} flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110`}>
+                        <f.icon className={`h-5 w-5 ${f.iconColor}`} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                          {f.title}
+                          <ArrowRight className="h-3.5 w-3.5 -translate-x-2 text-muted-foreground opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100" />
+                        </CardTitle>
+                        <CardDescription className="mt-1 text-sm">{f.desc}</CardDescription>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                        {f.title}
-                        <ArrowRight className="h-3.5 w-3.5 -translate-x-2 text-muted-foreground opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100" />
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-sm">{f.desc}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="relative space-y-4 pt-0">
+                    <div className="flex flex-wrap gap-1.5">
+                      {f.examples.map((ex) => (
+                        <button
+                          key={ex}
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            router.push(buildSearchHref(ex));
+                          }}
+                          className="inline-flex cursor-pointer rounded-md bg-muted/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary hover:text-white"
+                        >
+                          {ex}
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="relative space-y-4 pt-0">
-                  <div className="flex flex-wrap gap-1.5">
-                    {f.examples.map((ex) => (
-                      <button
-                        key={ex}
-                        type="button"
-                        onClick={() => router.push(buildSearchHref(ex))}
-                        className="inline-flex cursor-pointer rounded-md bg-muted/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary hover:text-white"
-                      >
-                        {ex}
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
             </motion.div>
           ))}
         </motion.div>

@@ -98,3 +98,22 @@ class EmailServiceFallbackTests(TestCase):
 
         self.assertIn('src="cid:stamp-1@lexhelm"', result)
         self.assertEqual(inline_attachments[0]["content"], b"stamp")
+
+    @patch.object(email_service, "_deliver_email")
+    def test_send_document_email_renders_edit_link(self, deliver_mock) -> None:
+        email_service.send_document_email(
+            to=["client@example.com"],
+            cc=[],
+            subject="Review your lease",
+            document_html=None,
+            document_link="http://localhost:3000/public-doc/abc123",
+            document_title="Lease Agreement",
+            sender_name="LexHelm User",
+            sender_email="user@example.com",
+        )
+
+        payload = deliver_mock.call_args.kwargs
+        self.assertIn("Hi there,", payload["html_content"])
+        self.assertIn("Link or URL", payload["html_content"])
+        self.assertIn("Use the link above to open the editable document page.", payload["html_content"])
+        self.assertIn("http://localhost:3000/public-doc/abc123", payload["html_content"])

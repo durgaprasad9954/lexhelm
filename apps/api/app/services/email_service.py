@@ -455,40 +455,70 @@ def send_document_email(
     to: list[str],
     cc: list[str],
     subject: str,
-    document_html: str,
+    document_html: Optional[str],
     document_title: str,
     sender_name: str,
     sender_email: str,
     note: Optional[str] = None,
+    document_link: Optional[str] = None,
     gmail_access_token: Optional[str] = None,
 ) -> None:
-    """Send a legal document to client(s) with Gmail delivery when configured."""
-    prepared_document_html, inline_attachments = _prepare_document_html_for_email(document_html)
+    """Send a legal document or document link to client(s) with Gmail delivery when configured."""
+    prepared_document_html = ""
+    inline_attachments: list[InlineAttachment] = []
+    if document_html:
+        prepared_document_html, inline_attachments = _prepare_document_html_for_email(document_html)
 
     note_html = ""
     if note:
         escaped_note = html.escape(note).replace("\n", "<br>")
         note_html = f"""
-        <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-          <p style="margin: 0; font-size: 14px; color: #374151; white-space: pre-wrap;">{escaped_note}</p>
-        </div>
+        <p style="margin: 0 0 16px; font-size: 14px; color: #374151; white-space: pre-wrap;">{escaped_note}</p>
         """
 
-    email_html = f"""
-    <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 700px; margin: 0 auto; color: #1a1a1a;">
-      <div style="background: linear-gradient(135deg, #8b5cf6, #a855f7); padding: 24px 28px; border-radius: 12px 12px 0 0;">
-        <h2 style="color: white; margin: 0; font-size: 18px;">{document_title}</h2>
-        <p style="color: rgba(255,255,255,0.85); margin: 6px 0 0; font-size: 13px;">
-          Sent by {sender_name}
+    link_html = ""
+    if document_link:
+        safe_link = html.escape(document_link, quote=True)
+        link_html = f"""
+        <p style="margin: 0 0 18px; font-size: 14px; color: #111827;">
+          Hi there,
         </p>
-      </div>
-      <div style="border: 1px solid #e5e7eb; border-top: none; padding: 24px 28px; border-radius: 0 0 12px 12px;">
-        {note_html}
+        <p style="margin: 0 0 18px; font-size: 14px; color: #111827;">
+          Your {html.escape(document_title)} has been generated.
+        </p>
+        <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #111827;">
+          Link or URL
+        </p>
+        <p style="margin: 0 0 18px;">
+          <a
+            href="{safe_link}"
+            style="color: #415CA4; text-decoration: underline; font-size: 14px; word-break: break-all;"
+          >
+            {safe_link}
+          </a>
+        </p>
+        <p style="margin: 0; font-size: 14px; color: #374151; line-height: 1.7;">
+          Use the link above to open the editable document page.<br />
+          You can type changes directly there or chat with the AI assistant.
+        </p>
+        """
+
+    document_html_block = ""
+    if prepared_document_html:
+        document_html_block = f"""
         <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; background: white;">
           <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 13px; line-height: 1.7; color: #1a1a1a;">
             {prepared_document_html}
           </div>
         </div>
+        """
+
+    email_html = f"""
+    <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 700px; margin: 0 auto; color: #1a1a1a;">
+      <div style="border: 1px solid #e5e7eb; padding: 24px 28px; border-radius: 12px; background: #ffffff;">
+        {note_html}
+        {link_html}
+        {document_html_block}
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
         <p style="color: #9ca3af; font-size: 11px; margin: 0;">
           Sent via <a href="{FRONTEND_URL}" style="color: #8b5cf6; text-decoration: none;">LexHelm</a>

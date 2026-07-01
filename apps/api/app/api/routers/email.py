@@ -21,7 +21,8 @@ class SendDocumentEmailRequest(BaseModel):
     cc: Optional[list[EmailStr]] = Field(None, max_length=10)
     subject: str = Field(..., min_length=1, max_length=200)
     note: Optional[str] = Field(None, max_length=2000)
-    document_html: str = Field(..., min_length=1)
+    document_html: Optional[str] = Field(None, min_length=1)
+    document_link: Optional[str] = Field(None, min_length=1, max_length=2000)
     document_title: str = Field("Document", max_length=200)
     gmail_access_token: Optional[str] = Field(None, min_length=1, max_length=4096)
     sender_email: Optional[str] = Field(None, min_length=3, max_length=320)
@@ -59,6 +60,8 @@ async def send_document(
 
     if not sender_email:
         raise HTTPException(status_code=400, detail="Your account must have an email to send documents.")
+    if not req.document_html and not req.document_link:
+        raise HTTPException(status_code=400, detail="Either document_html or document_link is required.")
 
     # Build CC list: always include the sender
     cc_list = list(req.cc or [])
@@ -72,6 +75,7 @@ async def send_document(
             subject=req.subject,
             note=req.note,
             document_html=req.document_html,
+            document_link=req.document_link,
             document_title=req.document_title,
             sender_name=sender_name,
             sender_email=sender_email,

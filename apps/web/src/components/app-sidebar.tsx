@@ -80,7 +80,13 @@ export function AppSidebar() {
       collapsed ? "w-16" : "w-64",
     )}>
       {/* Brand */}
-      <div className={cn("flex items-center gap-3 py-5", collapsed ? "justify-center px-2" : "px-5")}>
+      <Link
+        href="/dashboard"
+        className={cn(
+          "flex items-center gap-3 py-5 transition-opacity hover:opacity-90",
+          collapsed ? "justify-center px-2" : "px-5",
+        )}
+      >
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#415CA4] shadow-sm shrink-0">
           <Scale className="h-5 w-5 text-white" />
         </div>
@@ -90,7 +96,7 @@ export function AppSidebar() {
             <span className="text-[11px] font-medium text-muted-foreground">Legal Workspace</span>
           </div>
         )}
-      </div>
+      </Link>
 
       {/* Org */}
       {org && !collapsed && (

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,7 +9,7 @@ import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Scale } from "lucide-react";
 
-const PUBLIC_PATHS = ["/login", "/create", "/blog", "/public-doc-chat"];
+const PUBLIC_PATHS = ["/login", "/create", "/blog", "/public-doc-chat", "/public-doc"];
 const PUBLIC_EXACT = ["/"];
 const ADMIN_EMAILS = ["vikas@navyaai.com", "anand@navyaai.com", "marketing@navyaai.com"];
 
@@ -97,7 +98,9 @@ function getPageName(pathname: string): string {
           {/* Page Name Header */}
           {getPageName(pathname) && (
             <div className="shrink-0 border-b border-border/60 bg-card/70 backdrop-blur-sm px-6 py-3 flex items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">LexHelm</span>
+              <Link href="/dashboard" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60 transition-colors hover:text-primary">
+                LexHelm
+              </Link>
               <span className="text-muted-foreground/40">/</span>
               <span className="text-sm font-semibold text-primary">{getPageName(pathname)}</span>
             </div>

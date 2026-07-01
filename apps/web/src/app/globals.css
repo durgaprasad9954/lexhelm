@@ -49,6 +49,8 @@
 }
 
 :root {
+  --font-body: "Segoe UI", "Helvetica Neue", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: "Georgia", "Times New Roman", ui-serif, Cambria, serif;
   --radius: 0.625rem;
   --background: #F8FAFC;
   --foreground: #0F172A;
@@ -84,6 +86,8 @@
 }
 
 .dark {
+  --font-body: "Segoe UI", "Helvetica Neue", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: "Georgia", "Times New Roman", ui-serif, Cambria, serif;
   --background: #F8FAFC;
   --foreground: #0F172A;
   --card: #FFFFFF;

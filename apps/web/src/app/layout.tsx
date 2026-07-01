@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
-import { EB_Garamond, Lato } from "next/font/google";
 import "./globals.css";
 import { AuthShell } from "@/components/auth-shell";
 import { Providers } from "@/components/providers";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://lexhelm.com";
-const headingFont = EB_Garamond({ subsets: ["latin"], variable: "--font-heading" });
-const bodyFont = Lato({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-body" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
@@ -105,7 +102,7 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="en" className={`${headingFont.variable} ${bodyFont.variable}`}>
+    <html lang="en">
       <head>
         <script
           type="application/ld+json"
